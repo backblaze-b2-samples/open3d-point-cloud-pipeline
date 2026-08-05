@@ -7,7 +7,7 @@ Extract rich metadata from uploaded files and surface it both at upload time and
 ## Used By
 - API: `POST /upload` (called after B2 upload) — returns the full `FileMetadataDetail` in the upload response
 - API: `GET /files-by-key/detail?key=…` — recomputes `FileMetadataDetail` on demand for an already-stored object
-- UI: the Upload page renders it via `FileMetadataPanel`, behind a per-file "View details" disclosure on each completed upload (`apps/web/src/components/upload/upload-progress.tsx`)
+- UI: the Scans library upload flow renders it via `FileMetadataPanel`, behind a per-file "View details" disclosure on each completed upload (`apps/web/src/components/upload/upload-progress.tsx`, mounted by the Scans library rather than a standalone Upload page)
 - UI: the Files browser preview dialog renders it via `FileMetadataPanel`, behind a "Detailed metadata" disclosure that fetches lazily on expand (`apps/web/src/components/files/file-preview.tsx`)
 
 > Note: extraction is **not** persisted. At upload it runs from the in-memory bytes and is returned inline. For an already-stored object the `/files-by-key/detail` endpoint re-downloads the object and re-runs extraction on demand — so the checksums/EXIF/PDF fields cost a full object download and are size-guarded (objects above `max_file_size` are refused with 413). The cheap `GET /files-by-key/metadata` (a `head_object`) still returns only the core fields (key, size, type, uploaded-at). Persisting metadata at upload to avoid the re-download is tracked in the tech-debt tracker.
@@ -43,7 +43,7 @@ Extract rich metadata from uploaded files and surface it both at upload time and
 - The decompression-bomb ceiling is a deliberate safety control and stays in place: oversized images are reported, never decoded
 - Returns `FileMetadataDetail` model in the `metadata` field of the upload response
 - `uploaded_at` is passed in explicitly (the fresh upload time, or a stored object's `head_object` LastModified) so the panel shows the true upload time rather than the recompute wall-clock time; it defaults to now only when omitted
-- Upload page stores that payload on the completed queue item and renders it in `FileMetadataPanel` under a collapsible "View details" toggle
+- The Scans upload flow stores that payload on the completed queue item and renders it in `FileMetadataPanel` under a collapsible "View details" toggle
 - For a stored object: `get_file_detail()` heads the object (rejecting >`max_file_size`), downloads it via `get_object_bytes()`, and re-runs `extract_metadata()` with the object's real upload time; the Files preview dialog fetches this lazily when the user expands "Detailed metadata"
 
 ## Edge Cases
@@ -71,4 +71,4 @@ Extract rich metadata from uploaded files and surface it both at upload time and
 
 ## Related Docs
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [File Upload](file-upload.md)
+- [Point Cloud Ingest](point-cloud-ingest.md)

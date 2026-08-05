@@ -57,7 +57,7 @@ future issue and PR body and could never be corrected retroactively.
 
 ### Review ownership
 
-This starter kit has no `CODEOWNERS` file, so GitHub assigns no reviewer
+This project has no `CODEOWNERS` file, so GitHub assigns no reviewer
 automatically — request one manually. This is the canonical statement of that
 status: if `CODEOWNERS` is ever added, update this section, and the templates
 that point here stay correct without edits.

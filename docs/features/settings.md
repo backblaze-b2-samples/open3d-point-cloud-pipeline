@@ -2,10 +2,10 @@
 # Feature: Settings
 
 ## Purpose
-Show what a settings page can look like when you build on this starter kit — a
-profile, notification/quota preferences, and a default view — while being
-explicit that only the preferences the kit can actually honour do anything. Today
-that is Theme; the rest is a labelled demonstration.
+Show what a settings page can look like in this app — a profile,
+notification/quota preferences, and a default view — while being explicit that
+only the preferences the app can actually honour do anything. Today that is
+Theme; the rest is a labelled demonstration.
 
 ## Used By
 - UI: `/settings` page (`SettingsForm`, `DangerZone`)
