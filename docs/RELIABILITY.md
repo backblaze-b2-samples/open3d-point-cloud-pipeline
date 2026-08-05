@@ -28,6 +28,15 @@ Reliability expectations and practices for this project.
 - `/metrics` endpoint exposes basic Prometheus-format counters
 - Upload success/failure counts tracked
 
+## Job Execution — crash & hang isolation
+
+The heavy Open3D compute for a job runs in a **separate process** (`app/service/pipeline_runner.py`, `multiprocessing` `spawn` start method), not in the API worker's own threads. This contains the two failure modes that a native library makes possible:
+
+- **Native crash / segfault.** Open3D's Poisson reconstruction can abort at the C++ level (e.g. the intermittent `PoissonRecon … Failed to close loop` on macOS arm64). Such an abort cannot be caught by an in-process `try/except` and would zombify an in-thread worker — stranding the job `running` forever and taking the single-worker API down. Running it in a child means the crash kills only the child; the parent detects the missing result and marks the job `failed`. `/health` and every route stay responsive. The root-cause crash itself is also eliminated by running Poisson single-threaded (`n_threads=1`), which removes the nondeterministic OpenMP path.
+- **Hang / overrun.** A run that exceeds `JOB_RUN_TIMEOUT_SECONDS` (default 600) has its child **killed** (not merely abandoned) and the job marked `failed`. The timeout is enforced by the parent waiting on the child, so a wedged compute can never pin the worker.
+
+Only picklable data crosses the process boundary (source-cloud bytes in, artifact bytes + metrics out); B2 I/O stays in the parent, so the child imports no `boto3`. Regression-guarded by `services/api/tests/test_pipeline_runner.py`.
+
 ## Stateful Counters — durability caveats
 
 The download counter and the `/metrics` counters are **in-process, per replica**. Consequences to plan for before scaling:

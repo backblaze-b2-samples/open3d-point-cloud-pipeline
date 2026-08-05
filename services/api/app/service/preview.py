@@ -6,6 +6,12 @@ context. An Open3D ``OffscreenRenderer`` is an OPTIONAL higher-fidelity path,
 attempted only when explicitly enabled and always inside ``try/except`` so a
 missing Filament/GL context falls back to matplotlib. A ``preview.png`` is
 always produced.
+
+Rendering happens inside the background pipeline thread (see
+``service/jobs.py``), so this module uses matplotlib's object-oriented API
+(``Figure`` + ``FigureCanvasAgg``) exclusively. The ``pyplot`` interface keeps a
+process-global figure registry that is NOT thread-safe and can deadlock the
+worker while holding the GIL — no ``plt.*`` call may be added here.
 """
 
 import io
@@ -13,10 +19,11 @@ import logging
 
 import matplotlib
 
-matplotlib.use("Agg")  # headless: never tries to open a window
-import matplotlib.pyplot as plt
+matplotlib.use("Agg", force=True)  # headless: force the non-interactive backend
 import numpy as np
 import open3d as o3d
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 
 from app.config import settings
 
@@ -53,7 +60,8 @@ def _subsample_rows(arr: np.ndarray, limit: int) -> np.ndarray:
 def _matplotlib_preview(
     pcd: o3d.geometry.PointCloud, mesh: o3d.geometry.TriangleMesh | None
 ) -> bytes:
-    fig = plt.figure(figsize=(6, 6), facecolor="#0b0f17")
+    fig = Figure(figsize=(6, 6), facecolor="#0b0f17")
+    FigureCanvasAgg(fig)  # attach an Agg canvas; no pyplot global state
     ax = fig.add_subplot(111, projection="3d")
     ax.set_facecolor("#0b0f17")
     ax.set_axis_off()
@@ -80,7 +88,6 @@ def _matplotlib_preview(
     _equal_aspect(ax, pts)
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=100, bbox_inches="tight", facecolor=fig.get_facecolor())
-    plt.close(fig)
     return buf.getvalue()
 
 
@@ -98,7 +105,8 @@ def _equal_aspect(ax, pts: np.ndarray) -> None:
 
 
 def _placeholder_png() -> bytes:
-    fig = plt.figure(figsize=(6, 6), facecolor="#0b0f17")
+    fig = Figure(figsize=(6, 6), facecolor="#0b0f17")
+    FigureCanvasAgg(fig)  # attach an Agg canvas; no pyplot global state
     ax = fig.add_subplot(111)
     ax.set_axis_off()
     ax.text(
@@ -112,7 +120,6 @@ def _placeholder_png() -> bytes:
     )
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=100, facecolor=fig.get_facecolor())
-    plt.close(fig)
     return buf.getvalue()
 
 

@@ -121,6 +121,9 @@ export function JobDetail({ id }: { id: string }) {
               previewKey={job.preview_key}
               alt={`Preview of ${job.name}`}
               sizes="(max-width: 1024px) 100vw, 600px"
+              status={job.status}
+              registerScans={job.register_scans}
+              meshingMethod={job.meshing_method}
             />
           </div>
         </Card>

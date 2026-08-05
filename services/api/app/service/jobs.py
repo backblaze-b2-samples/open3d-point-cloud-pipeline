@@ -1,22 +1,27 @@
 """Job lifecycle: create / read / update / delete / run.
 
 A Job's system of record is a JSON manifest in B2 (``jobs/<id>/job.json``) — no
-database. Running executes the Open3D pipeline in a background daemon thread and
-flips the manifest ``queued -> running -> done|failed``; the frontend polls. All
-B2 access goes through ``repo/`` (``repo.artifacts`` for manifests/artifacts);
-the pipeline compute lives in ``service/pipeline.py``.
+database. Running orchestrates from a background daemon thread and flips the
+manifest ``queued -> running -> done|failed``; the frontend polls. The heavy
+Open3D compute itself runs in a SEPARATE process (``service/pipeline_runner.py``)
+so a native crash/segfault or a hang is contained to that child — it can never
+zombify the worker or wedge the whole API, and both are turned into a ``failed``
+manifest. All B2 access goes through ``repo/`` (``repo.artifacts`` for
+manifests/artifacts); the pipeline compute lives in ``service/pipeline.py``.
 """
 
 import logging
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FutureTimeout
 from datetime import UTC, datetime
 
 from app.config import settings
 from app.repo import artifacts
-from app.service.pipeline import run_pipeline
+from app.service.pipeline_runner import (
+    PipelineCrashed,
+    PipelineTimeout,
+    run_pipeline_isolated,
+)
 from app.types.formatting import humanize_bytes
 from app.types.jobs import Job, JobArtifact, JobCreate, JobStats, JobUpdate
 
@@ -166,21 +171,18 @@ def _execute(job_id: str) -> None:
             sources.append((key.rsplit("/", 1)[-1], data))
         source_bytes = sum(len(d) for _, d in sources)
 
-        # Bounded compute: a run that overruns the timeout is failed rather than
-        # pinning a worker forever. shutdown(wait=False) lets the timed-out
-        # compute finish in the background with its result discarded.
-        executor = ThreadPoolExecutor(max_workers=1)
-        try:
-            future = executor.submit(
-                run_pipeline,
-                sources,
-                voxel_size=job.voxel_size,
-                meshing_method=job.meshing_method,
-                register=job.register_scans,
-            )
-            result = future.result(timeout=settings.job_run_timeout_seconds)
-        finally:
-            executor.shutdown(wait=False)
+        # Heavy Open3D compute runs in a SEPARATE process (see
+        # service/pipeline_runner.py): a native crash/segfault kills only that
+        # child, and a genuine hang is bounded — the child is killed on timeout
+        # — so one bad run can never zombify the worker or wedge the whole API.
+        # B2 I/O stays here in the parent, below.
+        result = run_pipeline_isolated(
+            sources,
+            voxel_size=job.voxel_size,
+            meshing_method=job.meshing_method,
+            register=job.register_scans,
+            timeout=settings.job_run_timeout_seconds,
+        )
 
         written = _write_artifacts(job_id, result)
         metrics = result.metrics.model_copy(
@@ -207,8 +209,11 @@ def _execute(job_id: str) -> None:
             )
         )
         logger.info("Job done: id=%s amp=%sx", job_id, metrics.write_amplification)
-    except FutureTimeout:
+    except PipelineTimeout:
         _mark_failed(job_id, "Processing exceeded the per-run time limit")
+    except PipelineCrashed as exc:
+        logger.warning("Job worker crashed: id=%s err=%s", job_id, exc)
+        _mark_failed(job_id, "Processing failed unexpectedly (worker crashed)")
     except Exception as exc:
         logger.warning("Job failed: id=%s err=%s", job_id, exc)
         _mark_failed(job_id, str(exc))

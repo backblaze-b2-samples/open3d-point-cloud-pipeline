@@ -173,8 +173,13 @@ def build_mesh(
             pcd, radii
         )
     else:
+        # n_threads=1: Poisson's OpenMP-parallel isosurface extraction is the
+        # source of a non-deterministic native abort on macOS arm64
+        # ("PoissonRecon ... Failed to close loop"). Single-threaded is
+        # deterministic and eliminates that crash; the seed clouds are small so
+        # the serial path is not a meaningful slowdown.
         mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
-            pcd, depth=8
+            pcd, depth=8, n_threads=1
         )
         # Trim low-density balloon artifacts that Poisson leaves around the hull.
         density = np.asarray(densities)

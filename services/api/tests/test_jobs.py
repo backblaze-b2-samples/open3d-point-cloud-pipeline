@@ -109,7 +109,7 @@ def test_missing_job_raises(mem_store):
 def test_run_writes_artifacts_and_amplification(mem_store, monkeypatch):
     mem_store["raw/a.ply"] = b"x" * 40  # 40-byte source scan
     monkeypatch.setattr(
-        jobs_service, "run_pipeline", lambda *a, **k: _fake_pipeline_result()
+        jobs_service, "run_pipeline_isolated", lambda *a, **k: _fake_pipeline_result()
     )
 
     job = jobs_service.create_job(JobCreate(name="Run me", source_keys=["raw/a.ply"]))
@@ -130,7 +130,7 @@ def test_run_writes_artifacts_and_amplification(mem_store, monkeypatch):
 
 def test_run_with_missing_source_fails(mem_store, monkeypatch):
     monkeypatch.setattr(
-        jobs_service, "run_pipeline", lambda *a, **k: _fake_pipeline_result()
+        jobs_service, "run_pipeline_isolated", lambda *a, **k: _fake_pipeline_result()
     )
     job = jobs_service.create_job(JobCreate(name="Broken", source_keys=["raw/gone.ply"]))
     jobs_service.run_job(job.id)
@@ -146,7 +146,7 @@ def test_run_rejects_second_concurrent_run(mem_store, monkeypatch):
         time.sleep(0.3)
         return _fake_pipeline_result()
 
-    monkeypatch.setattr(jobs_service, "run_pipeline", slow_pipeline)
+    monkeypatch.setattr(jobs_service, "run_pipeline_isolated", slow_pipeline)
     job = jobs_service.create_job(JobCreate(name="Once", source_keys=["raw/a.ply"]))
     jobs_service.run_job(job.id)
     with pytest.raises(JobConflictError):
@@ -157,7 +157,7 @@ def test_run_rejects_second_concurrent_run(mem_store, monkeypatch):
 def test_job_stats(mem_store, monkeypatch):
     mem_store["raw/a.ply"] = b"x" * 100
     monkeypatch.setattr(
-        jobs_service, "run_pipeline", lambda *a, **k: _fake_pipeline_result()
+        jobs_service, "run_pipeline_isolated", lambda *a, **k: _fake_pipeline_result()
     )
     job = jobs_service.create_job(JobCreate(name="S", source_keys=["raw/a.ply"]))
     jobs_service.run_job(job.id)

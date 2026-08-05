@@ -30,10 +30,14 @@ database.
 
 ## Persistence (no database)
 Manifests and artifacts live under `jobs/<id>/` in B2. `list_jobs` reads every
-`job.json`; `run_job` marks the manifest `running`, executes the pipeline in a
+`job.json`; `run_job` marks the manifest `running` and orchestrates from a
 daemon thread, then rewrites the manifest `done` (with artifacts + metrics) or
-`failed` (with the error). Deletes are prefix-scoped to the job's own
-`jobs/<id>/` — never bucket-wide.
+`failed` (with the error). The heavy Open3D compute runs in a **separate
+process** (`service/pipeline_runner.py`, `spawn` start method), so a native
+crash/segfault or a hang is confined to that child and turned into a `failed`
+manifest instead of stranding the job or wedging the API; B2 I/O stays in the
+parent. Deletes are prefix-scoped to the job's own `jobs/<id>/` — never
+bucket-wide.
 
 ## Form UX conventions
 - **name** — free text; create form shows a placeholder hint, edit form does not
@@ -45,7 +49,9 @@ daemon thread, then rewrites the manifest `done` (with artifacts + metrics) or
 ## Edge Cases
 - Missing id → 404; editing a `running` job → 409; running an already-running job → 409
 - A source key missing in B2 at run time → job `failed` with a clear message
-- On a process restart, an in-flight job's manifest can stay `running` (single-replica demo caveat; a hard per-run timeout still bounds a live worker) — see [RELIABILITY.md](../RELIABILITY.md)
+- A native crash/segfault in the compute child → job `failed` (worker crashed), never stuck `running`; the API stays responsive
+- A run that overruns `JOB_RUN_TIMEOUT_SECONDS` → the compute child is killed and the job is `failed` (exceeded the time limit)
+- On a process restart, an in-flight job's manifest can stay `running` (single-replica demo caveat; the per-run timeout + out-of-process isolation still bound a live worker) — see [RELIABILITY.md](../RELIABILITY.md)
 
 ## UX States
 - List empty → "No processing jobs yet" + New job CTA; loading → skeleton cards
@@ -53,8 +59,8 @@ daemon thread, then rewrites the manifest `done` (with artifacts + metrics) or
 - Failed → destructive alert with the error
 
 ## Verification
-- Test files: `services/api/tests/test_jobs.py`, `services/api/tests/test_pipeline_smoke.py`, `apps/web/src/lib/api-contract.test.ts`
-- Required cases: create/read/list, update, delete, run→done with artifacts + write-amplification, run with a missing source → failed, concurrent-run conflict, job stats
+- Test files: `services/api/tests/test_jobs.py`, `services/api/tests/test_pipeline_runner.py`, `services/api/tests/test_pipeline_smoke.py`, `apps/web/src/lib/api-contract.test.ts`
+- Required cases: create/read/list, update, delete, run→done with artifacts + write-amplification, run with a missing source → failed, concurrent-run conflict, job stats; out-of-process isolation: result round-trips the process boundary, a worker crash → `PipelineCrashed`, a hang → killed at timeout (`PipelineTimeout`), an ordinary pipeline error → `PipelineError`
 - Focused verify command: `pnpm test:api`
 - Default pre-PR verify command: `pnpm verify`
 - Pass criteria: lifecycle tests green; the OpenAPI contract includes every `/jobs` operation

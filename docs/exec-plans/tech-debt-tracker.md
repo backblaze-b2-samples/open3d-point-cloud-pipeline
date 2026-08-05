@@ -40,6 +40,21 @@ Low-severity polish carried over on the starter surfaces this app keeps
 - 404 route — the breadcrumb title-cases the unknown slug (e.g. "This Route Does Not Exist"), presenting a nonexistent route as a real page name; the rest of the 404 is solid
 - `/settings` Danger Zone — the "Empty this bucket" card copy makes an unconditional destructive claim with no on-card qualifier (the confirm dialog does note it is a demo)
 
+## 2026-08-05 — verify
+
+Nitpicks from the `/sample-3-verify` UX funnel (3 lenses + adversarial gate). None
+block the goal; the marquee pipeline — ingest → downsample → optional registration →
+meshing → offscreen preview render, all persisted to B2, with the write-amplification
+ratio — was verified reliable end-to-end (default single-scan torus 7/7 completions).
+
+- `/jobs/new` & `/jobs/[id]/edit` — the Voxel size number input renders `0,02` (comma decimal) under some browser locales → cosmetic only; the submitted value is correctly `0.02` (`.local/verify/C3/42-new-form-register-gate.png`)
+- `/jobs/[id]` — the breadcrumb shows the raw job UUID instead of the job name (the page H1 does show the name) → opaque wayfinding label (`.local/verify/A/09-job-result.png`)
+- Dashboard — the "Bucket Activity (last 7 days)" chart counts the whole (shared) bucket, so on an otherwise-empty first run it shows large prior activity next to empty tiles → jarring in a shared-bucket dev context; fine single-tenant (`.local/verify/A/01-dashboard.png`)
+- Dashboard vs `/jobs/[id]` — the dashboard's aggregate write-amplification and the per-job write-amplification are not cross-labeled → a newcomer may wonder why the two numbers differ (`.local/verify/A3/01-dashboard.png`)
+- `/jobs` — the grid briefly shows blank gray skeleton cards (no shimmer/label) before data loads → can read as "empty" for a blink on a slow list (`.local/verify/A2/10-jobs-list.png`)
+- `/jobs/[id]` — after an in-place running→done flip the rendered preview shows a transient ~1–1.5s blank (the dark loading skeleton is near-invisible) before it composites → self-heals in place with no reload; always visible on reload/fresh nav (demoted from friction by the adversarial gate) (`.local/verify/C4/inplace-preview-t0.png`)
+- `/jobs` & Dashboard — pre-fix jobs stuck in "Running" (their worker was killed before the round-2 subprocess-isolation fix) are never reconciled to "Failed" and have no cancel/reset affordance (only Delete recovers) → prior-round residue; the isolation fix prevents NEW wedges (`.local/verify/C3/01-dashboard.png`)
+
 ## Resolved
 
 | Description | Resolution |
