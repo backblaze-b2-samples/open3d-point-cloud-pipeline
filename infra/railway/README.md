@@ -23,6 +23,14 @@ The web service uses the repository root intentionally: it builds against the
 shared workspace package in `packages/shared`. Do not change its root to
 `/apps/web` unless the build is redesigned to make that package available.
 
+**Open3D native dependencies.** The `api` service runs Open3D, which needs
+system libraries the base image may not include — notably `libgl1`,
+`libglib2.0-0`, and `libgomp1` (OpenGL/GLib/OpenMP). Railway's container build
+can install them (e.g. a Nixpacks/apt phase or an `aptPkgs` list). Point-cloud
+runs are CPU-only, so no GPU is required; size the service for the memory a real
+scan needs. This is the recommended home for the API because Vercel's serverless
+runtime cannot run these native libraries (see `../vercel/README.md`).
+
 Both versioned configs use Railpack, constrained watch paths, a 100-second
 health-check timeout, and restart-on-failure with ten retries. Railway injects
 `PORT`; do not define it manually. The API build installs the committed
@@ -39,8 +47,8 @@ them in a config file, commit, issue, PR, terminal transcript, or screenshot.
 
 | Service | Variable names | Classification | Notes |
 | --- | --- | --- | --- |
-| API | `B2_KEY_ID`, `B2_APPLICATION_KEY` | Secret | Limit the B2 key to the app bucket and least privilege. |
-| API | `B2_ENDPOINT`, `B2_BUCKET_NAME`, `B2_PUBLIC_URL`, `API_CORS_ORIGINS`, `API_CORS_ORIGIN_REGEX`, `ENABLE_DOCS`, `ALLOWED_KEY_PREFIX`, rate and size settings | Non-secret service configuration | Keep values in Railway, not source; set exact production CORS origins and `ENABLE_DOCS=false`. |
+| API | `B2_APPLICATION_KEY_ID`, `B2_APPLICATION_KEY` | Secret | Limit the B2 key to the app bucket and least privilege. |
+| API | `B2_REGION`, `B2_BUCKET_NAME`, `B2_PUBLIC_URL_BASE`, `API_CORS_ORIGINS`, `API_CORS_ORIGIN_REGEX`, `ENABLE_DOCS`, `ALLOWED_KEY_PREFIX`, `MAX_FILE_SIZE`, `JOB_RUN_TIMEOUT_SECONDS`, rate settings | Non-secret service configuration | Keep values in Railway, not source; set exact production CORS origins and `ENABLE_DOCS=false`. |
 | Web | `NEXT_PUBLIC_API_URL` | Public build-time configuration | Next.js embeds it in browser output; it must be the deployed API origin and contains no credential. |
 
 The browser needs a public API origin, so both services require a deliberate

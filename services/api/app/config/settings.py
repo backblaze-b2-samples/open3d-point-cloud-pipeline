@@ -2,11 +2,25 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    b2_endpoint: str = "https://s3.us-west-004.backblazeb2.com"
-    b2_key_id: str = ""
+    # Backblaze B2 (S3-compatible). Env var names follow the standardized B2_*
+    # contract: B2_APPLICATION_KEY_ID / B2_APPLICATION_KEY / B2_BUCKET_NAME /
+    # B2_REGION / B2_PUBLIC_URL_BASE.
+    b2_application_key_id: str = ""
     b2_application_key: str = ""
     b2_bucket_name: str = ""
-    b2_public_url: str = ""
+    # Region selects the S3 endpoint. B2's S3 endpoint is
+    # https://s3.<region>.backblazeb2.com — derived via the endpoint_url
+    # property below, so no region string is hardcoded here. Required at runtime;
+    # set B2_REGION in .env (see .env.example, e.g. us-west-004 / us-east-005).
+    b2_region: str = ""
+    # Advanced override: set B2_ENDPOINT only to target a non-standard or
+    # S3-proxy endpoint. Empty by default so the endpoint is derived from
+    # b2_region.
+    b2_endpoint: str = ""
+    # Optional public base URL for public buckets — builds direct object URLs
+    # (e.g. preview PNGs). The app runs fine without it (falls back to presigned
+    # URLs), so it is functionally optional.
+    b2_public_url_base: str = ""
 
     api_port: int = 8000
     # Interactive API docs (/docs, /redoc, /openapi.json). On by default for
@@ -23,8 +37,23 @@ class Settings(BaseSettings):
     # listing each one. NEVER ship this to production.
     api_cors_origin_regex: str = ""
 
-    # Upload limits
-    max_file_size: int = 100 * 1024 * 1024  # 100MB
+    # Upload limits. Real LiDAR / photogrammetry clouds are routinely multi-GB
+    # and B2 handles objects far larger than this — the cap only bounds what the
+    # in-memory API upload path buffers. Raise MAX_FILE_SIZE for bigger source
+    # scans; the seed clouds stay small (a few MB).
+    max_file_size: int = 500 * 1024 * 1024  # 500MB
+
+    # Hard per-run ceiling for a processing job (seconds). A job that exceeds it
+    # is marked failed rather than pinning a worker thread forever. Generous for
+    # the small seed clouds; raise it for very large real-world scans.
+    job_run_timeout_seconds: float = 600.0
+
+    # Preview rendering. matplotlib (Agg) is always the primary, headless-safe
+    # renderer. Set true to ALSO attempt an Open3D OffscreenRenderer first for a
+    # higher-fidelity thumbnail — it needs a working Filament/GL context and
+    # falls back to matplotlib automatically when one is unavailable (e.g. a
+    # headless server), so leaving it off is the safe default.
+    enable_offscreen_render: bool = False
 
     # Optional confinement for key-addressed reads/deletes. Empty by default so
     # the by-key routes accept any key shape (they deliberately support nested
@@ -66,6 +95,16 @@ class Settings(BaseSettings):
     download_count_file: str = ".data/download_count.json"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @property
+    def endpoint_url(self) -> str:
+        """S3 endpoint for the configured region.
+
+        Derives ``https://s3.<region>.backblazeb2.com`` from ``b2_region`` so no
+        region string is hardcoded. ``b2_endpoint`` (empty by default) is an
+        advanced override for non-standard endpoints.
+        """
+        return self.b2_endpoint or f"https://s3.{self.b2_region}.backblazeb2.com"
 
     @property
     def cors_origins(self) -> list[str]:

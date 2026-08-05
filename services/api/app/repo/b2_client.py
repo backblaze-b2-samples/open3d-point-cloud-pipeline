@@ -33,21 +33,21 @@ def _split_key(key: str) -> tuple[str, str]:
 
 def _public_url(key: str) -> str | None:
     """Build a public URL for an object key, percent-encoding the path."""
-    if not settings.b2_public_url:
+    if not settings.b2_public_url_base:
         return None
-    return f"{settings.b2_public_url}/{quote(key, safe='/')}"
+    return f"{settings.b2_public_url_base}/{quote(key, safe='/')}"
 
 
 @functools.lru_cache(maxsize=1)
 def get_s3_client():
     return boto3.client(
         "s3",
-        endpoint_url=settings.b2_endpoint,
-        aws_access_key_id=settings.b2_key_id,
+        endpoint_url=settings.endpoint_url,
+        aws_access_key_id=settings.b2_application_key_id,
         aws_secret_access_key=settings.b2_application_key,
         config=Config(
             signature_version="s3v4",
-            user_agent_extra="b2ai-oss-start",
+            user_agent_extra="b2ai-open3d-point-cloud-pipeline",
         ),
     )
 
@@ -121,6 +121,17 @@ def prewarm_listing() -> None:
     file browser waits out the cold scan (8-20s on a 16k-object bucket).
     """
     _prewarm_list_cache("", _fetch_all_objects)
+
+
+def invalidate_listing() -> None:
+    """Drop the cached bucket listing so the next read reflects fresh writes.
+
+    Job artifact / manifest writes go through repo/artifacts.py, which must
+    invalidate the same shared cache that /files, the Library, and the dashboard
+    read from — otherwise a just-finished job's outputs would not appear until
+    the TTL lapsed.
+    """
+    _invalidate_list_cache()
 
 
 def _fetch_all_objects(prefix: str) -> list[dict]:

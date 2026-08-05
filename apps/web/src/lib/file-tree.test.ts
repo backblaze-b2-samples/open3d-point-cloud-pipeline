@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FileMetadata } from "@vibe-coding-starter-kit/shared";
+import type { FileMetadata } from "@open3d-point-cloud-pipeline/shared";
 
 import {
   MAX_AUTO_EXPAND_DEPTH,

@@ -25,7 +25,7 @@ import {
   uploadStatusLabel,
   type UploadItem,
 } from "@/lib/upload-status";
-import type { FileStatus } from "@vibe-coding-starter-kit/shared";
+import type { FileStatus } from "@open3d-point-cloud-pipeline/shared";
 
 export type { UploadItem };
 

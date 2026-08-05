@@ -11,7 +11,7 @@ interface DropzoneProps {
   disabled?: boolean;
 }
 
-const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_SIZE = 500 * 1024 * 1024; // 500MB — see Settings.max_file_size
 
 export function Dropzone({
   onFilesSelected,
@@ -45,15 +45,15 @@ export function Dropzone({
   });
 
   const active = isDragActive && !disabled;
-  let title = "Drag & drop files here, or click to browse";
-  let description = "Max file size: 100 MB per file";
+  let title = "Drag & drop point clouds here, or click to browse";
+  let description = "PLY, PCD, LAS or LAZ — up to 500 MB per file";
 
   if (disabled) {
     title = "Uploads in progress";
-    description = "New files can be added when the current queue finishes.";
+    description = "New scans can be added when the current queue finishes.";
   } else if (active) {
-    title = "Drop files here";
-    description = "Release to add files to the upload queue.";
+    title = "Drop scans here";
+    description = "Release to add them to the upload queue.";
   }
 
   let stateClasses = "border-border hover:border-primary/60 hover:bg-muted/60";

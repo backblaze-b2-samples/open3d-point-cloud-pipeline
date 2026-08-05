@@ -1,18 +1,17 @@
 "use client";
 
-import { FileIcon, HardDrive, Upload, Download } from "lucide-react";
+import { Boxes, HardDrive, TrendingUp, Workflow } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingNotice } from "@/components/common/loading-notice";
-import { useFileStats } from "@/lib/queries";
+import { useJobStats } from "@/lib/queries";
 
 export function StatsCards() {
-  const { data: stats, isLoading, error, refetch } = useFileStats();
+  const { data: stats, isLoading, error, refetch } = useJobStats();
 
-  // Surface fetch failures inline rather than rendering "0 files / 0 B" —
-  // that lies to the user about the bucket state when really the API is
-  // just unreachable.
+  // Surface fetch failures inline rather than rendering zeros — that would lie
+  // about the bucket state when really the API is just unreachable.
   if (error) {
     return (
       <Card>
@@ -24,20 +23,21 @@ export function StatsCards() {
   }
 
   const cards = [
-    { title: "Total Files", value: stats?.total_files ?? 0, icon: FileIcon },
-    { title: "Storage Used", value: stats?.total_size_human ?? "0 B", icon: HardDrive },
-    { title: "Uploads Today", value: stats?.uploads_today ?? 0, icon: Upload },
-    { title: "Total Downloads", value: stats?.total_downloads ?? 0, icon: Download },
+    { title: "Processing Jobs", value: stats?.total_jobs ?? 0, icon: Workflow },
+    { title: "Source Data (raw/)", value: stats?.source_bytes_human ?? "0 B", icon: Boxes },
+    { title: "Artifacts on B2", value: stats?.artifact_count ?? 0, icon: HardDrive },
+    {
+      title: "Write Amplification",
+      value: stats ? `${stats.write_amplification}×` : "0×",
+      icon: TrendingUp,
+    },
   ];
 
   return (
     <>
-      {/* Stats need a full bucket listing, which measured ~8s on a 16k-object
-          bucket. Four blank skeleton cards said nothing about that; this states
-          it in words and escalates if the wait keeps going. */}
-      {isLoading && (
-        <LoadingNotice className="mb-3" subject="bucket stats" />
-      )}
+      {/* Stats scan the jobs/ and raw/ prefixes, which can take a moment on a
+          large bucket. State that in words rather than showing blank cards. */}
+      {isLoading && <LoadingNotice className="mb-3" subject="pipeline metrics" />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card, i) => (
           <Card

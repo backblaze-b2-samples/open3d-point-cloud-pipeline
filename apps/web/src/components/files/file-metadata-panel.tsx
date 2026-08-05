@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import type { FileMetadataDetail } from "@vibe-coding-starter-kit/shared";
+import type { FileMetadataDetail } from "@open3d-point-cloud-pipeline/shared";
 
 interface FileMetadataPanelProps {
   metadata: FileMetadataDetail;

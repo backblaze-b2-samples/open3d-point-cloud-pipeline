@@ -30,13 +30,12 @@ const REQUIRED_PNPM_MAJOR = 9;
 // .env.example. Keep in sync with services/api/main.py REQUIRED_B2_SETTINGS
 // and PLACEHOLDER_VALUES.
 const REQUIRED_B2_VARS = [
-  "B2_ENDPOINT",
-  "B2_KEY_ID",
+  "B2_APPLICATION_KEY_ID",
   "B2_APPLICATION_KEY",
   "B2_BUCKET_NAME",
+  "B2_REGION",
 ];
 const PLACEHOLDERS = new Set([
-  "your_b2_endpoint",
   "your_key_id",
   "your_application_key",
   "your-bucket-name",
@@ -171,7 +170,7 @@ function checkEnv() {
   if (placeholders.length > 0) {
     fail(
       `.env still has placeholder values: ${placeholders.join(", ")}`,
-      "Edit .env and replace placeholders with your real B2 credentials (https://secure.backblaze.com/app_keys.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)",
+      "Edit .env and replace placeholders with your real B2 credentials (https://secure.backblaze.com/app_keys.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-open3d-point-cloud-pipeline)",
     );
   }
 }

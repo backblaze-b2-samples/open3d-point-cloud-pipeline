@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Upload } from "lucide-react";
+import { Boxes } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FileBrowser } from "@/components/files/file-browser";
@@ -11,14 +11,15 @@ export default function FilesPage() {
         <div className="min-w-0">
           <h1 className="page-title">Files</h1>
           <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
-            Browse and manage your most recent uploads. Click a file to preview
-            it.
+            The full-bucket explorer — every object across <code>raw/</code> and{" "}
+            <code>jobs/</code>. Click a file to preview it. For just the source
+            scans, use the Scans library.
           </p>
         </div>
         <Button asChild size="sm" className="h-8 shrink-0">
-          <Link href="/upload">
-            <Upload aria-hidden="true" className="h-3.5 w-3.5" />
-            Upload files
+          <Link href="/scans">
+            <Boxes aria-hidden="true" className="h-3.5 w-3.5" />
+            Ingest scans
           </Link>
         </Button>
       </div>

@@ -1,261 +1,166 @@
-<!-- last_verified: 2026-07-30 -->
-# Vibe Coding Starter Kit
+<!-- last_verified: 2026-08-05 -->
+# Open3D Point Cloud Pipeline
 
-Stop wiring boilerplate and start building. This open-source starter kit gives vibe coders and AI coding agents a production-ready foundation — a full-stack TypeScript + Python template with a pre-built dashboard UI, file upload system, and **[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)** cloud storage already integrated. Save thousands of tokens on setup prompts, skip the "build me a dashboard from scratch" loop, and go straight to building your app's unique features.
+A B2-backed 3D point-cloud processing pipeline. Ingest raw LiDAR or
+photogrammetry scans (PLY / PCD / LAS / LAZ) into **[Backblaze B2](https://www.backblaze.com/cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-open3d-point-cloud-pipeline)**,
+then run an **[Open3D](https://www.open3d.org/)** pipeline — downsample → optional
+multi-scan registration → surface meshing → offscreen preview render — and write
+every artifact (processed cloud, mesh, preview PNG, and the job manifest) back to
+B2. It runs entirely on local open-source software: **no second API key, B2
+credentials only**, CPU by default.
 
-**What you get out of the box:**
-- Full-stack dashboard UI (Next.js 16 + React 19 + Tailwind v4 + shadcn/ui)
-- File upload with drag-and-drop, progress tracking, and metadata extraction
-- File browser with preview, download, and delete
-- FastAPI backend with strict layered architecture and structural tests
-- Agent-optimized docs — your AI coding agent can read the repo and start contributing immediately
-
-## What it looks like
-
-**Dashboard** — stats, upload activity, and recent uploads at a glance:
-
-![Dashboard view showing stat cards, upload activity chart, and recent uploads table](docs/images/b2-starterkit-dashboard1.png)
-
-**File browser** — tree view with preview, download, and delete:
-
-![File browser view showing a tree of files with hover actions](docs/images/b2-starterkit-fileview2.png)
-
-## Agent-First Architecture
-
-This repo is optimized for coding agents. Use the template, point your agent at it, and start building.
-
-The structure follows the principle that **repository knowledge is the system of record**. Anything an agent can't access in-context doesn't exist — so everything it needs to reason about the codebase is versioned, co-located, and discoverable from the repo itself.
-
-### How it works
-
-**[AGENTS.md](AGENTS.md) is the single source of truth for all coding agents.** Its bounded, agent-sized entry point gives agents the repository layout, architectural invariants, commands, conventions, and pointers to deeper docs. Agent-specific files (CLAUDE.md, GEMINI.md, Copilot instructions, etc.) are thin pointers back to AGENTS.md.
-
-**Architecture is enforced mechanically, not by convention.** Layering rules, import boundaries, file size limits, and SDK containment are verified by structural tests and lints that run on every change. When rules are enforceable by code, agents follow them reliably.
-
-**The knowledge base is structured for progressive disclosure:**
-
-```
-AGENTS.md              Single source of truth — layout, invariants, commands, conventions
-ARCHITECTURE.md        System layout, layering rules, data flows
-docs/
-  features/            Feature docs (inputs, outputs, flows, edge cases)
-  app-workflows.md     User journeys
-  dev-workflows.md     Engineering workflows and testing
-  SECURITY.md          Security principles
-  RELIABILITY.md       Reliability expectations
-  exec-plans/          Execution plans and tech debt tracker
-```
-
-### Key design decisions
-
-| Principle | Implementation |
-|-----------|---------------|
-| Give agents a single source of truth | AGENTS.md — bounded layout, invariants, commands, conventions |
-| Enforce invariants mechanically | Structural tests + ruff + ESLint verify boundaries |
-| DRY documentation | Each fact lives in one place; no redundant files to drift |
-| Strict layered architecture | `types -> config -> repo -> service -> runtime`, enforced by tests |
-| Prefer boring, composable libraries | stdlib logging over frameworks, Pydantic over ad-hoc validation |
-| Contain external SDKs | `boto3` only in `repo/` layer — verified by structural test |
-| Keep files agent-sized | 300-line limit per file, enforced by test |
-| Docs updated with code | Same-PR requirement prevents documentation rot |
-| Structured observability | JSON logging, `/metrics` endpoint, request tracing |
-
-This approach draws from [OpenAI's experience building with Codex](https://openai.com/index/harness-engineering/): agents work best in environments with strict boundaries, predictable structure, and progressive context disclosure.
+It is a concrete demonstration of B2 as the storage layer for the **largest
+single artifacts** in a 3D workflow, where one source cloud fans out into several
+derived objects — heavy, structured **write-amplification**.
 
 ## Quick Start
 
-You need: Node.js >= 20, pnpm >= 9, Python >= 3.11, and a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)**.
+You need: Node.js ≥ 20, pnpm ≥ 9, **Python 3.12**, and a free
+**[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-open3d-point-cloud-pipeline)**.
+Python 3.12 is required because Open3D ≥ 0.19 (its first cp312 wheel) is pinned;
+`.python-version` pins it and the setup scripts resolve it.
 
-### Supported local environments
-
-Local scripts are supported on macOS, Linux, and WSL2. Native Windows is not
-supported yet because the dev scripts use POSIX shell syntax and
-`services/api/.venv/bin/*` paths; use WSL2 on Windows.
-
-Cloud or sandboxed coding-agent environments also need permission for dependency
-downloads during `pnpm run setup`. Running the app or Playwright E2E requires
-localhost server binding for the web server on port 3000 and the API on
-8000-8009, plus permission to launch the Playwright Chromium browser. If a
-sandbox denies binding, `pnpm run doctor` and `scripts/pick-port.mjs` report
-`EPERM`/`EACCES` as a permissions issue instead of a busy port. A host without
-IPv6 (many containers) is not treated as a failure — the IPv4 probe decides.
-
-### Start a new project
-
-**Option 1: GitHub Template (recommended)**
-
-Click the green **"Use this template"** button at the top of this repo, name your project, then:
-
-```bash
-git clone https://github.com/yourorg/my-cool-app.git
-cd my-cool-app
-```
-
-**Option 2: Clone and reinitialize**
-
-```bash
-git clone https://github.com/backblaze-b2-samples/vibe-coding-starter-kit.git my-cool-app
-cd my-cool-app
-rm -rf .git
-git init
-git add .
-git commit -m "Initial commit from vibe-coding-starter-kit"
-```
-
-Either way you get a clean project with no upstream history — ready to push to your own repo and point your agent at it.
-
-### Setup
-
-**1. Run setup**
+**1. Install**
 
 ```bash
 pnpm run setup
 ```
 
-This copies `.env.example` to `.env` only when `.env` does not already exist,
-installs workspace dependencies from `pnpm-lock.yaml`, creates
-`services/api/.venv` if missing, and installs the API's committed Python 3.11
-resolution from `services/api/requirements.lock`. It is safe to rerun and never
-overwrites an existing `.env`.
-
-> Use the `pnpm run` form: `setup` (like `doctor`) is a built-in pnpm command
-> before pnpm 11, so bare `pnpm setup` would run pnpm's own command instead of
-> this script.
+This copies `.env.example` to `.env` (only if missing), installs workspace
+dependencies, creates `services/api/.venv`, and installs the committed Python
+resolution from `services/api/requirements.lock` (Open3D, laspy, matplotlib, …).
+Use the `pnpm run` form — `pnpm setup` is a built-in pnpm command.
 
 **2. Add your B2 credentials**
 
-Open `.env` in your editor and keep it visible. Then head to the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start) and:
+Open `.env` and, from the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-open3d-point-cloud-pipeline):
 
-1. **Create a bucket.** B2 will show two values — paste each into `.env`:
-   - **Bucket Unique Name** → `B2_BUCKET_NAME`
-   - **Endpoint** → `B2_ENDPOINT`
-2. **Create an application key** with `Read and Write` permission. B2 will show two values — paste each into `.env`:
-   - **keyID** → `B2_KEY_ID`
-   - **applicationKey** → `B2_APPLICATION_KEY` *(only shown once — paste it now)*
+1. **Create a bucket** → paste its **Bucket Unique Name** into `B2_BUCKET_NAME`, and
+   read the **region** from its Endpoint (e.g. `us-west-004`) into `B2_REGION`.
+2. **Create an application key** with read/write/delete on that bucket →
+   **keyID** into `B2_APPLICATION_KEY_ID`, **applicationKey** into `B2_APPLICATION_KEY`.
 
-> Want a walkthrough? See the docs for [creating a bucket](https://www.backblaze.com/docs/cloud-storage-create-and-manage-buckets) and [creating app keys](https://www.backblaze.com/docs/cloud-storage-create-and-manage-app-keys).
+The S3 endpoint is derived from `B2_REGION` (`https://s3.<region>.backblazeb2.com`)
+— nothing hardcodes a region.
 
-**3. Run it**
+**3. Seed synthetic sample scans (no downloads)**
+
+```bash
+services/api/.venv/bin/python services/api/scripts/seed_samples.py
+```
+
+This generates small, license-clean point clouds with Open3D and uploads them to
+`raw/`: a full-object torus (for the single-scan mesh demo) and an overlapping
+partial-scan pair (for the registration demo).
+
+**4. Run the demo**
 
 ```bash
 pnpm dev
 ```
 
-That's it. Frontend at `localhost:3000`, API at `localhost:8000`. Upload a file and see it working. Interactive API docs (Swagger UI) are at `localhost:8000/docs`, with ReDoc at `/redoc`.
+Frontend at `localhost:3000`, API at `localhost:8000`. Go to **Scans** to see the
+seeded clouds, then **Jobs → New job**: pick the torus for a single-scan mesh (or
+both scan-pair clouds with **Register** on), create it, and press **Run**. When it
+finishes you get a processed cloud, a mesh, and a rendered preview — all stored in
+B2 — plus the source→artifact write-amplification ratio.
 
-`pnpm dev` runs the preflight check first — it catches the common setup gotchas (wrong Node/Python version, missing venv, missing or placeholder `.env`, ports already taken) and tells you exactly how to fix each one. Run it standalone any time with `pnpm run doctor`.
+`pnpm dev` runs a preflight check first (`pnpm run doctor`) that catches the
+common setup gotchas.
 
-## Building Your App
+## Screenshots
 
-When you adapt this kit for a new app, keep the shared scaffolding and only swap out what's app-specific:
+_Screenshots are generated by the sample pipeline and added on publish._
+The primary screens are the **Dashboard** (jobs + write-amplification metrics),
+the **Jobs** grid with preview thumbnails, a **Job detail** page (preview, metrics,
+artifact downloads), and the **Scans** library.
 
-- **Keep** the UI kit (`apps/web/src/components/ui/` + design tokens in `globals.css` + `/design`).
-- **Keep** the File Explorer (`/files`) and Upload (`/upload`) pages and their sidebar nav entries — they're the reusable B2-backed surface.
-- **Adapt** the Dashboard (`/`) to your use case — replace the default stats, chart, and recent uploads with metrics that reflect what your app actually does.
-- **Rebrand** by editing a single file: `apps/web/src/lib/app-config.ts` holds the app name and description (`APP_NAME`, `APP_DESCRIPTION`). Changing them there updates the page title, sidebar, and breadcrumb everywhere — no other files to touch.
+## Features
 
-Full contract and rationale: [AGENTS.md §2 — Building on This Starter Kit](AGENTS.md#2-building-on-this-starter-kit).
+- **[Point-cloud ingest](docs/features/point-cloud-ingest.md)** — upload PLY / PCD / LAS / LAZ scans to B2; a scoped **Scans** Library over the `raw/` prefix.
+- **[Open3D processing pipeline](docs/features/processing-pipeline.md)** — voxel downsample + statistical outlier removal → optional FPFH/RANSAC + ICP multi-scan registration → Poisson / ball-pivoting meshing → headless preview render. CPU-only.
+- **[Jobs](docs/features/jobs.md)** — the primary entity: full create / read / edit / delete / run, persisted as JSON manifests **in B2** (no database).
+- **[Dashboard](docs/features/dashboard.md)** — total jobs, source bytes, artifact count, and the **write-amplification ratio**.
+- **[Bucket explorer](docs/features/bucket-explorer.md)** — the full-bucket browser (preview / download / delete) retained alongside the scoped Library.
+- Rendered previews served from B2 via presigned URLs; structured JSON logging; `/health` and `/metrics`; per-IP rate limiting.
 
-## Core Features
+## Why Backblaze B2
 
-- [File Upload](docs/features/file-upload.md) — drag-and-drop upload with real-time progress
-- [File Browser](docs/features/file-browser.md) — list, preview, download, delete files
-- [Dashboard](docs/features/dashboard.md) — stats cards, upload chart, recent uploads
-- [Metadata Extraction](docs/features/metadata-extraction.md) — image dimensions, EXIF, PDF info, checksums
-- [Design System](docs/design-system.md) — tokens, primitives, AI elements, the blaze generating loader, and inline `ErrorState` / `EmptyState` patterns. Live preview at `/design`.
-- Inline error handling — fetch failures surface *what's wrong* (API offline, 401, 5xx) and offer a Retry, instead of silently rendering empty state.
-- Single-source config — one `.env` at the repo root powers both API and web app, validated at startup so misconfig fails fast with a readable message.
-- Centralized data layer — every fetch goes through TanStack Query hooks in `apps/web/src/lib/queries.ts`; cache invalidation is one call after a mutation.
-- Checked API contract — `docs/api/openapi.json` plus `pnpm contract:check` catch FastAPI/client route drift.
-- Structural tests — verify layering rules, import boundaries, SDK containment, file size limits
-- Structured JSON logging — every request traced with `request_id` and timing
-- `/health` endpoint — B2 connectivity check
-- `/metrics` endpoint — Prometheus-format counters (request count, latency, uploads)
-- `/docs` + `/redoc` — auto-generated interactive API docs (toggle off in prod with `ENABLE_DOCS=false`)
-- Per-IP rate limiting and magic-byte upload validation — see [SECURITY.md](docs/SECURITY.md)
+A single source scan fans out into several large derived objects — the processed
+cloud, the mesh, and the preview — plus a JSON job manifest, all written back to
+B2. That **write-amplification** (surfaced on the dashboard as an artifact-bytes ÷
+source-bytes ratio) is exactly the workload object storage is for: real LiDAR
+clouds are multi-GB, and B2 stores and serves them cheaply. The app persists all
+state (job manifests + artifacts) in B2 under `raw/` and `jobs/<id>/` — there is
+no database. Every S3 call uses the S3-compatible API with a custom user agent
+(`b2ai-open3d-point-cloud-pipeline`).
 
-## Tech Stack
+## Architecture
 
-- TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, Recharts
-- TanStack Query — caching, dedup, retry, stale-while-revalidate for every fetch
-- Python 3.11+, FastAPI, boto3, Pydantic v2, Pillow, PyPDF2
-- Backblaze B2 (S3-compatible object storage)
-- pnpm workspaces (monorepo)
+`apps/web` (Next.js 16 + React 19 + Tailwind v4 + shadcn/ui) + `services/api`
+(FastAPI, strictly layered `types → config → repo → service → runtime`) +
+`packages/shared` in a pnpm workspace. The Open3D pipeline runs in a background
+thread; `boto3` is confined to `repo/`. See [ARCHITECTURE.md](ARCHITECTURE.md) and
+[AGENTS.md](AGENTS.md).
+
+**Deployment (be honest about it).** Open3D's native libraries do **not** run on
+Vercel's serverless runtime, so the API is **local / self-hosted** — run it
+locally, in a container, or on Railway (see
+[infra/railway/README.md](infra/railway/README.md)). The Next.js frontend can
+still deploy to Vercel pointing at a self-hosted API via `NEXT_PUBLIC_API_URL`
+(see [infra/vercel/README.md](infra/vercel/README.md)). Point-cloud ops are
+CPU-bound — no GPU is required.
 
 ## Commands
 
 | Command | What it does |
 |---------|-------------|
-| `pnpm run setup` | Idempotently copy `.env.example` to `.env` only if missing, install workspace dependencies, create the backend venv, and install the locked API dependencies |
-| `pnpm run doctor` | Preflight environment check (also runs automatically before `pnpm dev`) |
+| `pnpm run setup` | Copy `.env.example` → `.env` (if missing), install deps, create the venv, install the locked Python resolution |
+| `pnpm run doctor` | Preflight environment check (runs before `pnpm dev`) |
 | `pnpm dev` | Start frontend + backend |
-| `pnpm dev:web` | Frontend only |
-| `pnpm dev:api` | Backend only |
-| `pnpm contract:export` | Export deterministic FastAPI OpenAPI JSON to `docs/api/openapi.json` |
-| `pnpm contract:check` | Verify the checked-in OpenAPI artifact and frontend API client route registry |
-| `pnpm check:agent-docs` | Validate agent shims, command docs, CI claims, and `.env` ignore coverage |
-| `pnpm verify` | Credential-free canonical non-live pre-PR suite — runs `check:agent-docs`, `verify:api`, then `verify:web` |
-| `pnpm verify:api` | Backend half: API lint, API tests, structure tests |
+| `pnpm verify` | Credential-free pre-PR suite — runs `pnpm check:agent-docs`, `pnpm verify:api`, then `pnpm verify:web` |
+| `pnpm verify:api` | Backend half: API lint, API tests (incl. the Open3D smoke), structure tests |
 | `pnpm verify:web` | Frontend half: web lint, web unit tests, web typecheck + build |
-| `pnpm verify:full` | `pnpm run doctor`, then `pnpm verify`, then Playwright E2E; requires populated `.env`, local server/browser permission, port 3000 free, and Chromium installed |
-| `pnpm build` | Build frontend |
-| `pnpm lint` | Lint frontend |
-| `pnpm lint:api` | Lint backend (ruff) |
-| `pnpm test:web` | Run frontend unit tests (vitest) |
-| `pnpm test:api` | Run backend tests |
-| `pnpm check:structure` | Verify layering rules |
-| `pnpm test:e2e` | Playwright E2E smoke tests (run `pnpm --filter @vibe-coding-starter-kit/web exec playwright install chromium` once first) |
+| `pnpm verify:full` | `pnpm run doctor`, then `pnpm verify`, then Playwright E2E (needs a populated `.env`, local server/browser permission, and Chromium) |
+| `pnpm check:agent-docs` | Validate agent shims, command docs, CI claims, and `.env` ignore coverage |
+| `pnpm lint` / `pnpm build` | Frontend lint / production build |
+| `pnpm test:api` / `pnpm test:web` | Backend (pytest, incl. the Open3D smoke) / frontend (vitest) tests |
+| `pnpm contract:export` / `pnpm contract:check` | Re-export / verify `docs/api/openapi.json` and the frontend route registry after a route change |
 
-Run `pnpm run setup` once before local development, and rerun it after pulling
-dependency changes. It installs workspace dependencies from `pnpm-lock.yaml`
-and API dependencies from `services/api/requirements.lock`. If you add a Node
-dependency yourself, run `pnpm install` to refresh `pnpm-lock.yaml`; for an API
-dependency, follow the reviewed refresh workflow in
-[docs/dev-workflows.md](docs/dev-workflows.md#python-dependency-updates). Run
-`pnpm verify` before opening a PR; it needs
-`services/api/.venv` from setup. Run `pnpm verify:full` when you can start the
-local app stack and browser tests: `.env` must contain real B2 values, local
-server binding must be permitted, Playwright's Chromium browser must be
-installed, and port 3000 must be free (or already serving this app). Playwright
-waits on `http://localhost:3000`,
-but `next dev` falls back to the next free port when 3000 is taken — so an
-unrelated process on 3000 makes the E2E run time out. The API starts at
-`localhost:8000` or the next free port chosen by `scripts/dev.sh`.
+Seed data: `services/api/.venv/bin/python services/api/scripts/seed_samples.py`.
+For the Playwright E2E, install Chromium once with
+`pnpm --filter @open3d-point-cloud-pipeline/web exec playwright install chromium`.
 
-`pnpm verify` needs neither B2 credentials nor a browser. For parallel agents,
-use one Git worktree per verification run as documented in [the verification
-workflow](docs/dev-workflows.md#non-live-verification). That page also covers
-normal timing, slow-run recovery, and installing the optional local pre-commit
-hooks.
+## FAQ / When to use
 
-## Deploying to Vercel
+**When is this a good fit?** When you have 3D scans (LiDAR, photogrammetry, depth
+cameras) and want a reproducible, storage-backed pipeline that turns raw clouds
+into meshes and previews, with every artifact durably kept in object storage.
+It's a template for 3D-scanning, AEC/BIM, and robotics/AV perception teams.
 
-This starter deploys to Vercel as **one project** using Vercel
-[Services](https://vercel.com/docs/services): the Next.js web app and the
-FastAPI API build from the same repo and share a single origin — the web app at
-`/` and the API under `/api`. One click, one project, **no CORS and no wiring
-two URLs together**.
+**When is it *not* the right tool?** If you only need to view a cloud once and
+throw it away, a desktop viewer is simpler. If you need GPU-accelerated
+reconstruction at scale, wire the pipeline to a GPU worker — the geometry ops here
+are deliberately CPU-only for portability.
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbackblaze-b2-samples%2Fvibe-coding-starter-kit&project-name=vcsk&env=B2_KEY_ID,B2_APPLICATION_KEY,B2_ENDPOINT,B2_BUCKET_NAME,MAX_FILE_SIZE&envDescription=B2%20credentials%2C%20bucket%2C%20and%20the%204MB%20Vercel%20upload%20cap&envLink=https%3A%2F%2Fgithub.com%2Fbackblaze-b2-samples%2Fvibe-coding-starter-kit%2Fblob%2Fmain%2Finfra%2Fvercel%2FREADME.md)
+**Does it need a GPU?** No. The Open3D core geometry ops used here (voxel
+downsample, outlier removal, FPFH/RANSAC/ICP, Poisson / ball-pivoting, normals)
+are CPU-bound. No GPU is required or auto-selected.
 
-Set the B2 credentials and bucket, and `MAX_FILE_SIZE=4000000` — Vercel
-Functions cap each request/response payload at 4.5 MB, so the starter's 100 MB
-default must come down. The web app reaches the API at the same-origin `/api`
-automatically, so **no `NEXT_PUBLIC_API_URL` is needed**; the repo-root
-`vercel.json` declares the `web` and `api` services and routes `/api/*` to
-FastAPI (which serves its native `/health`, `/files`, … paths — the Vercel-only
-`services/api/index.py` strips the `/api` prefix).
+**Do I need a second API key or cloud service?** No. Processing is on-device with
+Open3D; the only credentials are your `B2_*` values.
 
-For uploads larger than 4.5 MB, switch to a direct-to-B2 presigned-upload flow
-instead of proxying file bytes through a Function.
+**Can I deploy the API to Vercel?** No — Open3D's native libraries don't run on
+Vercel serverless. Self-host the API (local / Docker / Railway); Vercel can host
+the frontend pointing at it. See the deployment note above.
 
-The button clones the repo into your account as a quick preview. For the full
-variable classification, the two-separate-Projects alternative, security
-controls, preview/production process, `/health` verification, and rollback,
-follow the [Vercel delivery contract](infra/vercel/README.md). The API is
-unauthenticated and bucket-wide, so use a dedicated B2 bucket/prefix and key for
-any preview. Deploying is a human-approved action — nothing here performs one
-for you.
+**Why Python 3.12?** Open3D 0.18 has no cp312 wheel; this sample pins
+`open3d>=0.19.0` (which ships cp312 wheels and supports NumPy 2), so
+`.python-version` is `3.12`.
+
+**Where does my data live?** Everything is in your B2 bucket: raw scans under
+`raw/`, and each job's manifest + artifacts under `jobs/<id>/`. Deleting a job
+removes only that job's prefix.
 
 ## Documentation Map
 
@@ -263,25 +168,14 @@ for you.
 |-----|---------|
 | [AGENTS.md](AGENTS.md) | Agent table of contents — start here |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System layout, layering, data flows |
-| [docs/features/](docs/features/) | Feature docs (upload, browser, dashboard, metadata) |
-| [docs/design-system.md](docs/design-system.md) | Design tokens, primitives, AI elements, loader, error/empty states |
+| [docs/features/](docs/features/) | Feature docs (ingest, pipeline, jobs, dashboard, bucket explorer) |
 | [docs/app-workflows.md](docs/app-workflows.md) | User journeys |
 | [docs/dev-workflows.md](docs/dev-workflows.md) | Engineering workflows and testing |
 | [docs/SECURITY.md](docs/SECURITY.md) | Security principles |
 | [docs/RELIABILITY.md](docs/RELIABILITY.md) | Reliability expectations |
-| [infra/vercel/README.md](infra/vercel/README.md) | Vercel deployment contract |
-| [docs/exec-plans/](docs/exec-plans/) | Execution plans and tech debt tracker |
-
-## Contributing
-
-Start with [AGENTS.md](AGENTS.md). It's the map — everything else is discoverable from there. For local commit hooks, follow [the pre-commit workflow](docs/dev-workflows.md#pre-commit).
+| [infra/railway/README.md](infra/railway/README.md) | Self-hosted API delivery contract |
+| [infra/vercel/README.md](infra/vercel/README.md) | Frontend Vercel delivery contract |
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Claude Agent B2 Skill
-
-Manage Backblaze B2 from your terminal using natural language (list/search, audits, stale or large file detection, security checks, safe cleanup).
-
-Repo: [https://github.com/backblaze-b2-samples/claude-skill-b2-cloud-storage](https://github.com/backblaze-b2-samples/claude-skill-b2-cloud-storage)
+MIT License — see [LICENSE](LICENSE) for details.

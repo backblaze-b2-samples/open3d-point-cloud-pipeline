@@ -1,5 +1,5 @@
 {
-  "name": "@vibe-coding-starter-kit/shared",
+  "name": "@open3d-point-cloud-pipeline/shared",
   "version": "0.1.0",
   "private": true,
   "main": "./src/types.ts",

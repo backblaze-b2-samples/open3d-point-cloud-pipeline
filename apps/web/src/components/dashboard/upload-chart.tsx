@@ -24,7 +24,7 @@ import { useUploadActivity } from "@/lib/queries";
 
 const chartConfig = {
   uploads: {
-    label: "Uploads",
+    label: "Objects added",
     color: "var(--chart-1)",
   },
 } satisfies ChartConfig;
@@ -73,8 +73,10 @@ export function UploadChart() {
   return (
     <Card>
       <CardHeader className="border-b border-border py-4 px-5">
-        <CardTitle className="card-title">Upload Activity</CardTitle>
-        <CardDescription className="text-xs">Last 7 days</CardDescription>
+        <CardTitle className="card-title">Bucket Activity</CardTitle>
+        <CardDescription className="text-xs">
+          Objects written to B2, last 7 days
+        </CardDescription>
         <CardAction className="text-right self-center">
           {isLoading ? (
             <div aria-hidden className="space-y-1">
@@ -102,7 +104,7 @@ export function UploadChart() {
           <EmptyState
             icon={BarChart3}
             title="No activity yet"
-            description="Upload files to see activity trends here."
+            description="Ingest scans and run jobs to see B2 write activity here."
           />
         ) : (
           <ChartContainer config={chartConfig} className="h-[240px] w-full">

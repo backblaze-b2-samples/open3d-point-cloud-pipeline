@@ -100,7 +100,7 @@ async def test_upload_empty_file_returns_400(client):
 
     response = await client.post(
         "/upload",
-        files={"file": ("empty.txt", BytesIO(b""), "text/plain")},
+        files={"file": ("empty.ply", BytesIO(b""), "application/octet-stream")},
     )
     assert response.status_code == 400
     assert "empty" in response.json()["detail"].lower()

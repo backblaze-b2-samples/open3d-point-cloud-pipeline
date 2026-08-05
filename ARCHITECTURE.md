@@ -4,19 +4,19 @@
 ## Components
 
 - **apps/web/** — Next.js 16 frontend (App Router, Tailwind v4, shadcn/ui)
-  - Dashboard with stats, upload chart, recent uploads
-  - File upload with drag-and-drop, progress tracking
-  - File browser with preview, download, delete
+  - Dashboard with job + storage write-amplification metrics
+  - Scans library — point-cloud ingest, scoped to the `raw/` prefix
+  - Jobs (primary entity) — create/read/edit/delete/run, with preview thumbnails
+  - Full-bucket file explorer with preview, download, delete
   - Dark mode via `next-themes`
 - **services/api/** — FastAPI backend (layered architecture)
-  - REST API for file upload, listing, deletion
-  - B2 S3 integration via boto3
-  - File metadata extraction (images, PDFs)
+  - REST API for scan ingest, job lifecycle, and the full-bucket explorer
+  - Open3D processing pipeline (downsample → optional registration → mesh → preview), CPU-only, run in a background thread
+  - B2 S3 integration via boto3 (raw scans, job manifests, and artifacts)
   - Health check endpoint with B2 connectivity verification
-  - Structured JSON logging with request tracing
-  - Prometheus-format metrics endpoint
+  - Structured JSON logging, Prometheus-format `/metrics`
 - **packages/shared/** — TypeScript type definitions
-  - Mirrors Pydantic models from the API
+  - Mirrors Pydantic models from the API (files + Job types)
   - Consumed by `apps/web/` as workspace dependency
 
 ## Backend Layering
@@ -49,12 +49,13 @@ runtime/   FastAPI routes — calls service, never repo directly
 services/api/
   main.py                  App entrypoint, middleware, router registration
   app/
-    types/                 Pydantic models (FileMetadata, UploadStats, etc.)
-    config/                Settings loaded from environment
-    repo/                  B2 S3 client (data access layer)
-    service/               Business logic (upload, files, metadata)
-    runtime/               FastAPI route handlers
-  tests/                   pytest tests (structural + integration)
+    types/                 Pydantic models (FileMetadata, UploadStats, Job, ...)
+    config/                Settings loaded from environment (endpoint_url derived from B2_REGION)
+    repo/                  B2 S3 client + artifacts.py (manifest/artifact I/O) — the only boto3 code
+    service/               Business logic: upload, files, metadata, jobs, pipeline, pointcloud, preview
+    runtime/               FastAPI route handlers (files, jobs, upload, health, metrics)
+  scripts/seed_samples.py  Generate synthetic clouds and upload to raw/
+  tests/                   pytest tests (structural + integration + Open3D smoke)
 ```
 
 ## Boundary Invariants
@@ -73,24 +74,29 @@ services/api/
   repository root because it consumes `packages/shared`; `api` builds from
   `services/api`. The versioned per-service configs and the human-approved
   staging/production contract live in [infra/railway/README.md](infra/railway/README.md).
-- **Vercel** — one project using [Vercel Services](https://vercel.com/docs/services):
-  the `web` (Next.js) and `api` (FastAPI) services build from the same repo and
-  share one origin — the web app at `/`, the API under `/api`. The repo-root
-  `vercel.json` declares both services and routes `/api/*` to the API service;
-  the Vercel-only `services/api/index.py` strips the `/api` prefix so FastAPI
-  keeps its native paths (`/health`, `/files`, …). It is suitable only for
-  uploads below Vercel's 4.5 MB Function payload ceiling. A
-  two-separate-Projects alternative and the full delivery contract live in
+- **Self-hosted API (required for Open3D).** Open3D's native libraries do **not**
+  run on Vercel's serverless runtime, so the processing API is self-hosted:
+  locally, in a Docker container, or on Railway (two services; the versioned
+  configs and human-approved delivery contract live in
+  [infra/railway/README.md](infra/railway/README.md)). Point-cloud ops are
+  CPU-only — no GPU is required. `services/api/index.py` is a generic ASGI
+  wrapper that strips an `/api` prefix, useful behind any single-origin reverse
+  proxy.
+- **Vercel — frontend only.** The Next.js app can deploy to Vercel (root
+  `vercel.json` declares the single `web` service) pointing at the self-hosted
+  API via `NEXT_PUBLIC_API_URL`. There is intentionally **no Vercel deploy
+  button** because the API cannot run there. See
   [infra/vercel/README.md](infra/vercel/README.md).
 
 External provisioning and deployment remain explicit user-approved actions.
 
 ## Data Stores
 
-- **Backblaze B2** — object storage (S3-compatible API)
-  - All uploaded files stored in a single bucket
-  - File listing and metadata via S3 `list_objects_v2` / `head_object`
-  - No application database — B2 is the sole data store
+- **Backblaze B2** — object storage (S3-compatible API), the **sole** data store (no database)
+  - `raw/` — ingested source scans
+  - `jobs/<id>/job.json` — the Job manifest (system of record for the primary entity)
+  - `jobs/<id>/{processed.ply,mesh.ply,preview.png}` — derived artifacts
+  - Listing/metadata via S3 `list_objects_v2` / `head_object`; a single-flight, stale-while-revalidate cache is shared across `/files`, the Library, and the dashboard
 
 ## External Services
 
@@ -106,10 +112,10 @@ See [docs/SECURITY.md](docs/SECURITY.md) for full security documentation.
 
 ## Data Flows
 
-- **Upload**: Browser -> `POST /upload` (multipart) -> API validates -> service orchestrates -> repo writes to B2 -> metadata extracted -> response
-- **List**: Browser -> `GET /files` -> service calls repo -> returns file list
-- **Download**: Browser -> `GET /files/{key}/download` -> service validates key -> repo generates presigned URL -> browser downloads
-- **Delete**: Browser -> `DELETE /files/{key}` -> service validates key -> repo deletes from B2
+- **Ingest**: Browser -> `POST /upload` (multipart) -> API validates extension + magic bytes -> repo writes to B2 `raw/{name}` -> response
+- **Create job**: Browser -> `POST /jobs` -> service writes the manifest to `jobs/<id>/job.json` (status `queued`)
+- **Run job**: Browser -> `POST /jobs/{id}/run` -> manifest flips `running` -> background thread downloads sources from B2, runs the Open3D pipeline (`service/pipeline.py`), writes `processed.ply` + `mesh.ply` + `preview.png` to `jobs/<id>/`, then rewrites the manifest `done` (or `failed`) -> frontend polls
+- **List / Download / Delete**: `GET /files` / `GET /files-by-key/download` (presigned) / prefix-scoped `DELETE /jobs/{id}` (removes only `jobs/<id>/`)
 
 ## Observability
 
@@ -132,23 +138,24 @@ silently drift from FastAPI. `GET /metrics` is intentionally server-only.
 
 ## Canonical Files
 
-- Layered API handler: `services/api/app/runtime/upload.py`
-- Service orchestration: `services/api/app/service/upload.py`
-- B2 data access (repo layer): `services/api/app/repo/b2_client.py`
-- Pydantic models: `services/api/app/types/` (`files.py`, `upload.py`, `stats.py`, `formatting.py`)
+- Primary-entity lifecycle (service): `services/api/app/service/jobs.py`
+- Pipeline compute: `services/api/app/service/pipeline.py`, `pointcloud.py`, `preview.py`
+- Jobs routes: `services/api/app/runtime/jobs.py`
+- B2 data access (repo layer): `services/api/app/repo/b2_client.py`, `repo/artifacts.py`
+- Pydantic models: `services/api/app/types/` (`files.py`, `jobs.py`, `upload.py`, `stats.py`)
 - Config (pydantic-settings): `services/api/app/config/settings.py`
-- Structural tests: `services/api/tests/test_structure.py`
-- OpenAPI contract: `docs/api/openapi.json`
-- OpenAPI exporter: `services/api/scripts/export_openapi.py`
-- Frontend API client: `apps/web/src/lib/api-client.ts`
+- Structural tests: `services/api/tests/test_structure.py`; Open3D smoke: `tests/test_pipeline_smoke.py`
+- OpenAPI contract: `docs/api/openapi.json` (exporter: `services/api/scripts/export_openapi.py`)
+- Frontend API client / hooks: `apps/web/src/lib/api-client.ts`, `apps/web/src/lib/queries.ts`
 - Shared TypeScript types: `packages/shared/src/types.ts`
 
 ## Core Features
 
-- [File Upload](docs/features/file-upload.md)
-- [File Browser](docs/features/file-browser.md)
+- [Point-Cloud Ingest](docs/features/point-cloud-ingest.md)
+- [Processing Pipeline](docs/features/processing-pipeline.md)
+- [Jobs](docs/features/jobs.md)
 - [Dashboard](docs/features/dashboard.md)
-- [Metadata Extraction](docs/features/metadata-extraction.md)
+- [Bucket Explorer](docs/features/bucket-explorer.md)
 
 ## References
 

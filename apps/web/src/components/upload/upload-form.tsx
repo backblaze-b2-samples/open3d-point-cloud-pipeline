@@ -32,7 +32,7 @@ export function UploadForm() {
   return (
     <Card>
       <CardHeader className="border-b border-border py-4 px-5">
-        <CardTitle className="card-title">Upload Files</CardTitle>
+        <CardTitle className="card-title">Ingest point clouds</CardTitle>
       </CardHeader>
       <CardContent className="p-5 space-y-4">
         <Dropzone

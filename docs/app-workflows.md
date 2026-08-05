@@ -3,18 +3,27 @@
 
 User journeys inside the application.
 
-## Upload Files
+## Ingest Scans
 
-- User navigates to `/upload`
-- Drops or selects files in the dropzone
-- Client validates file size (max 100MB) and type
-- A determinate progress bar tracks the bytes leaving the browser; once they are all sent the row switches to "Storing in B2..." with an *indeterminate* sweeping bar for the server-side phase (put_object + checksums + metadata). That phase has no percentage to report — measured at 25s on a 54MB file — and a bar parked at a full 100% read as finished-but-stuck
-- On success: toast notification, green checkmark, and a "View in Files" link through to the browser
-- On failure: red status icon with error message
-- User can clear completed uploads
-- The queue lives in an app-wide provider: navigating to another page keeps the upload running, shows an "Uploading N files" indicator in the header, and keeps the duplicate-upload guard armed
-- Reloading or closing mid-upload asks for confirmation first; if the upload dies anyway, the next load says which file didn't finish
-- See: [File Upload](features/file-upload.md)
+- User navigates to `/scans` (the scoped Library over the `raw/` prefix)
+- Drops or selects point-cloud files (PLY / PCD / LAS / LAZ) in the dropzone
+- Client filters by extension and size (max 500MB); the API re-validates the extension and the leading bytes (`ply` / `LASF` / PCD header), then stores the scan at `raw/{name}`
+- A determinate bar tracks the bytes leaving the browser; once sent, the row switches to "Storing in B2..." with an indeterminate sweeping bar for the server-side phase
+- On success the scan appears in the `raw/` list below, with a delete action and a "Create job" shortcut
+- The upload queue lives in an app-wide provider, so navigating away keeps it running and the header shows an "Uploading N files" indicator
+- No scans yet? Run `services/api/scripts/seed_samples.py` to add synthetic sample clouds
+- See: [Point-Cloud Ingest](features/point-cloud-ingest.md)
+
+## Create and Run a Processing Job
+
+- User navigates to `/jobs/new`
+- Fills the form: a name, a multi-select of source scans (a selector over the `raw/` set — registration needs ≥ 2), a meshing-method `Select` (Poisson default), a Register switch (enabled only with ≥ 2 scans), and a voxel size (with a safe-default hint)
+- Submitting creates the job (`POST /jobs`, status `queued`) and lands on its detail page
+- Pressing **Run** starts the Open3D pipeline in the background; the manifest flips `running` and the page polls
+- When it finishes, the detail page shows the rendered preview, run metrics (points, mesh triangles, run time), the **write-amplification** ratio, and download links for the processed cloud, mesh, and preview — all served from B2
+- **Edit** opens the form pre-filled with the job's real values; **Delete** removes only that job's `jobs/<id>/` prefix after a confirmation; **Re-run** reprocesses
+- A failed run shows the error inline instead of hanging
+- See: [Jobs](features/jobs.md), [Processing Pipeline](features/processing-pipeline.md)
 
 ## Browse and Manage Files
 
@@ -28,18 +37,19 @@ User journeys inside the application.
 - **Preview**: opens dialog with image/PDF preview + metadata panel, and the file's Download / Delete actions — the advertised "click a file" path offers everything the row menu does. The loading state holds until the media paints; a failure offers "Open in a new tab". The preview URL is signed with `Content-Disposition: inline` so PDFs render in place
 - **Download**: shows a pending state on the row plus a toast while the presigned URL is fetched, then starts the download via an anchor click (which, unlike a popup, still works if the click's user activation expired during a slow presign). Failures are reported; the click can never silently do nothing
 - **Delete**: the confirmation dialog stays open showing "Deleting..." until the request settles, then the row disappears with the toast (optimistic cache update) and the list reconciles with the server. The dialog is held deliberately — Radix closes on action click by default, which dismissed the only pending state and left the row looking untouched while the delete was still in flight
-- Empty bucket shows "No files found" with upload prompt
-- See: [File Browser](features/file-browser.md)
+- Empty bucket shows a "No files found" message pointing to the Scans library
+- This is the bucket-wide view (`raw/` scans and `jobs/` artifacts); for just the source scans, use the Scans library
+- See: [Bucket Explorer](features/bucket-explorer.md)
 
 ## View Dashboard
 
 - User navigates to `/` (home)
-- Three parallel API calls load: stats, recent files, upload activity — all served from one shared bucket listing that the API warms at startup
+- Parallel queries load: job stats, recent jobs, and bucket activity — job queries poll while any job is active
 - While stats load, the page states it in words above the cards rather than showing silent skeletons
-- Stats cards show: total files, storage used, uploads today, total downloads
-- Upload chart shows last 7 days of upload activity as bar chart
-- Recent uploads table shows last 10 files with filename, size, type, date. Each filename links to that file's preview on `/files` — `/files` teaches "click a file to preview it", so the same gesture here has to answer rather than being inert text
-- Empty state: "No files uploaded yet" messages
+- Stat cards show: processing jobs, source data (raw/), artifacts on B2, and the write-amplification multiplier
+- The Bucket Activity chart shows objects written to B2 per day (last 7)
+- The Recent Jobs table lists the latest jobs with status; each links to its detail page
+- Empty state: "No jobs yet" / "No activity yet"
 - See: [Dashboard](features/dashboard.md)
 
 ## Change Preferences

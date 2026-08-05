@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
 import { dropDeletedFileFromCache, qk } from "@/lib/queries";
-import type { FileMetadata } from "@vibe-coding-starter-kit/shared";
+import type { FileMetadata } from "@open3d-point-cloud-pipeline/shared";
 
 function file(key: string): FileMetadata {
   return {

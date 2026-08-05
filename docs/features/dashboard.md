@@ -1,62 +1,59 @@
-<!-- last_verified: 2026-07-28 -->
+<!-- last_verified: 2026-08-05 -->
 # Feature: Dashboard
 
 ## Purpose
-Provide an at-a-glance overview of file storage usage and recent upload activity.
+Give an at-a-glance view of point-cloud processing and the write-amplified B2
+storage it produces — how many jobs ran, how much source data was ingested, how
+many artifacts were written, and the source→artifact write-amplification ratio.
 
 ## Used By
 - UI: `/` page (dashboard home)
-- API: `GET /files/stats`, `GET /files`, `GET /files/stats/activity`
+- API: `GET /jobs/stats`, `GET /jobs`, `GET /files/stats/activity`
 
 ## Core Functions
-- `apps/web/src/components/dashboard/stats-cards.tsx` — 4 stat cards, plus the on-screen loading notice while the bucket scan runs
-- `apps/web/src/components/dashboard/recent-uploads-table.tsx` — last 10 uploads
-- `apps/web/src/components/dashboard/upload-chart.tsx` — bar chart of uploads per day
-- `apps/web/src/lib/api-client.ts` — `getFileStats()`, `getFiles()`, `getUploadActivity()`
-- `services/api/app/runtime/files.py` — `GET /files/stats` handler
-- `services/api/app/service/files.py` — `get_stats()` business logic
-- `services/api/app/repo/b2_client.py` — `get_upload_stats()` data access
-- `services/api/app/repo/list_cache.py` — the shared bucket listing both `/files/stats` and `/files` read, so the dashboard and the file browser never scan twice
-- `apps/web/src/components/common/loading-notice.tsx` — visible, escalating wait copy
+- `apps/web/src/components/dashboard/stats-cards.tsx` — 4 stat cards (Processing Jobs, Source Data, Artifacts on B2, Write Amplification)
+- `apps/web/src/components/dashboard/recent-jobs-table.tsx` — most recent jobs with status
+- `apps/web/src/components/dashboard/upload-chart.tsx` — objects written to B2 per day
+- `apps/web/src/lib/queries.ts` — `useJobStats()`, `useJobs()`, `useUploadActivity()`
+- `services/api/app/service/jobs.py` — `get_job_stats()` (counts jobs, sums `raw/` vs `jobs/` bytes, computes amplification)
+- `services/api/app/repo/artifacts.py` — `list_under()` for the `raw/` and `jobs/` prefixes
 
 ## Canonical Files
-- Dashboard page layout: `apps/web/src/components/dashboard/stats-cards.tsx`
-- Stats service logic: `services/api/app/service/files.py`
+- Dashboard aggregation: `services/api/app/service/jobs.py` (`get_job_stats`)
+- Stat cards: `apps/web/src/components/dashboard/stats-cards.tsx`
 
 ## Inputs
-- None (dashboard loads data automatically)
+- None (loads automatically)
 
 ## Outputs
-- `GET /files/stats` → `UploadStats` (total_files, total_size_bytes, total_size_human, uploads_today, total_downloads)
-- `GET /files` (limit 10) → `FileMetadata[]` for recent uploads table (sorted newest-first)
-- `GET /files/stats/activity?days=7` → `DailyUploadCount[]` for chart (server-side aggregation)
+- `GET /jobs/stats` → `JobStats` (total_jobs, per-status counts, source_bytes, artifact_bytes, artifact_count, write_amplification)
+- `GET /jobs` → `Job[]` for the recent-jobs table
+- `GET /files/stats/activity?days=7` → `DailyUploadCount[]` for the bar chart (all objects, server-aggregated)
 
 ## Flow
-- Page loads → three parallel API calls (stats, recent files, upload activity), all served from one cached bucket listing
-- Stats needed ~8.3s to replace the skeletons on a 16k-object bucket, so: the API warms that listing at startup and serves it stale-while-revalidate (only the very first scan after boot can block), and the cards state the wait in words while it runs instead of showing four silent placeholders
-- Stats cards display total files, storage used, uploads today, total downloads
-- Upload chart displays server-aggregated daily counts for last 7 days as bar chart after activity data is known
-- Recent uploads table shows last 10 files with filename, size, type, date, status badge. Each filename is a link to `/files?preview=<key>`, which opens that file's preview in the browser — the rows used to be inert text with no role, tabindex or handler, so the "click a file to preview it" gesture `/files` teaches did nothing here
+- Page loads → parallel queries for job stats, recent jobs, and bucket activity
+- Stat cards show the job count, ingested source size, artifact count, and the write-amplification multiplier (artifact bytes ÷ source bytes)
+- The "Bucket Activity" chart shows objects written to B2 per day (last 7)
+- The "Recent Jobs" table links each job to its detail page; job queries poll while any job is active so a finished run appears without a manual refresh
 
 ## Edge Cases
-- API unavailable → error states with retry where supported; activity chart does not show a false zero state while loading
-- No files uploaded → empty chart message, empty table message
-- Large file count → stats endpoint paginates through all objects using `ContinuationToken`; the result is cached, so the cost is paid once (at startup) rather than per page view
-- Bucket changed by something other than this app → numbers can lag by up to `LIST_CACHE_TTL_SECONDS` (default 300s). The app's own uploads/deletes invalidate the cache, so they are never stale
+- API unavailable → inline error state with retry (never a false "0 jobs")
+- No jobs / no scans → empty states on cards, chart, and table
+- Numbers derive from listing the `raw/` and `jobs/` prefixes; the app's own writes invalidate the shared listing cache, so its own changes are never stale
 
 ## UX States
-- Loading: an on-screen "Loading bucket stats…" notice above the cards (escalating at 4s and 12s), with skeleton placeholders for cards, table, and upload activity chart
-- Empty: "No files uploaded yet" / "No upload data available yet"
-- Loaded: populated cards, chart, table
+- Loading: a "Loading pipeline metrics…" notice above skeleton cards
+- Empty: "No jobs yet" / "No activity yet"
+- Loaded: populated cards, chart, and recent-jobs table
 
 ## Verification
-- Test files: `services/api/tests/test_upload_activity.py`, `services/api/tests/test_recent_files.py`, `services/api/tests/test_list_cache.py`, `apps/web/src/lib/loading-progress.test.ts`
-- Required cases: stats with files, stats with empty bucket, API error fallback, cached listing reused across stats and listing calls, loading copy escalating at its thresholds
+- Test files: `services/api/tests/test_jobs.py` (`test_job_stats`), `apps/web/src/lib/api-contract.test.ts`
+- Required cases: job stats with a completed run (amplification > 0), empty bucket, API error fallback
 - Focused verify command: `pnpm test:api`
 - Default pre-PR verify command: `pnpm verify`
-- Full local verify command: `pnpm verify:full` when the E2E/live prerequisites in [Dev Workflows](../dev-workflows.md#commands) are available
-- Pass criteria: focused tests and `pnpm verify` green; explain any skipped `pnpm verify:full` prerequisites
+- Pass criteria: focused tests and `pnpm verify` green
 
 ## Related Docs
+- [Jobs](jobs.md)
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
 - [App Workflows](../app-workflows.md)

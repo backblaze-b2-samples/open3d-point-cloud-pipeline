@@ -321,6 +321,382 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Job": {
+        "description": "Full Job record as persisted and returned to the frontend.",
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/JobArtifact"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meshing_method": {
+            "default": "poisson",
+            "enum": [
+              "poisson",
+              "ball_pivoting"
+            ],
+            "title": "Meshing Method",
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/JobMetrics"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "preview_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Key"
+          },
+          "register_scans": {
+            "default": false,
+            "title": "Register Scans",
+            "type": "boolean"
+          },
+          "source_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Source Keys",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "voxel_size": {
+            "default": 0.02,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10.0,
+            "title": "Voxel Size",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "source_keys",
+          "id",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Job",
+        "type": "object"
+      },
+      "JobArtifact": {
+        "description": "One derived object written back to B2 by a completed run.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "size_human": {
+            "title": "Size Human",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "key",
+          "size_bytes",
+          "size_human"
+        ],
+        "title": "JobArtifact",
+        "type": "object"
+      },
+      "JobCreate": {
+        "description": "POST /jobs body.",
+        "properties": {
+          "meshing_method": {
+            "default": "poisson",
+            "enum": [
+              "poisson",
+              "ball_pivoting"
+            ],
+            "title": "Meshing Method",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "register_scans": {
+            "default": false,
+            "title": "Register Scans",
+            "type": "boolean"
+          },
+          "source_keys": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Source Keys",
+            "type": "array"
+          },
+          "voxel_size": {
+            "default": 0.02,
+            "exclusiveMinimum": 0.0,
+            "maximum": 10.0,
+            "title": "Voxel Size",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "source_keys"
+        ],
+        "title": "JobCreate",
+        "type": "object"
+      },
+      "JobMetrics": {
+        "description": "Numbers the run produced \u2014 drive the dashboard's write-amplification view.",
+        "properties": {
+          "artifact_bytes": {
+            "default": 0,
+            "title": "Artifact Bytes",
+            "type": "integer"
+          },
+          "downsampled_points": {
+            "default": 0,
+            "title": "Downsampled Points",
+            "type": "integer"
+          },
+          "duration_seconds": {
+            "default": 0.0,
+            "title": "Duration Seconds",
+            "type": "number"
+          },
+          "mesh_triangles": {
+            "default": 0,
+            "title": "Mesh Triangles",
+            "type": "integer"
+          },
+          "mesh_vertices": {
+            "default": 0,
+            "title": "Mesh Vertices",
+            "type": "integer"
+          },
+          "registered": {
+            "default": false,
+            "title": "Registered",
+            "type": "boolean"
+          },
+          "source_bytes": {
+            "default": 0,
+            "title": "Source Bytes",
+            "type": "integer"
+          },
+          "source_points": {
+            "default": 0,
+            "title": "Source Points",
+            "type": "integer"
+          },
+          "write_amplification": {
+            "default": 0.0,
+            "title": "Write Amplification",
+            "type": "number"
+          }
+        },
+        "title": "JobMetrics",
+        "type": "object"
+      },
+      "JobStats": {
+        "description": "Aggregate job + write-amplification metrics for the dashboard.",
+        "properties": {
+          "artifact_bytes": {
+            "title": "Artifact Bytes",
+            "type": "integer"
+          },
+          "artifact_bytes_human": {
+            "title": "Artifact Bytes Human",
+            "type": "string"
+          },
+          "artifact_count": {
+            "title": "Artifact Count",
+            "type": "integer"
+          },
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "source_bytes": {
+            "title": "Source Bytes",
+            "type": "integer"
+          },
+          "source_bytes_human": {
+            "title": "Source Bytes Human",
+            "type": "string"
+          },
+          "total_jobs": {
+            "title": "Total Jobs",
+            "type": "integer"
+          },
+          "write_amplification": {
+            "title": "Write Amplification",
+            "type": "number"
+          }
+        },
+        "required": [
+          "total_jobs",
+          "queued",
+          "running",
+          "done",
+          "failed",
+          "source_bytes",
+          "source_bytes_human",
+          "artifact_bytes",
+          "artifact_bytes_human",
+          "artifact_count",
+          "write_amplification"
+        ],
+        "title": "JobStats",
+        "type": "object"
+      },
+      "JobUpdate": {
+        "description": "PATCH /jobs/{id} body \u2014 every field optional (partial update).",
+        "properties": {
+          "meshing_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "poisson",
+                  "ball_pivoting"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meshing Method"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "register_scans": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Register Scans"
+          },
+          "source_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Keys"
+          },
+          "voxel_size": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 10.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voxel Size"
+          }
+        },
+        "title": "JobUpdate",
+        "type": "object"
+      },
       "UploadStats": {
         "properties": {
           "total_downloads": {
@@ -397,8 +773,8 @@
     }
   },
   "info": {
-    "description": "File upload and management API backed by Backblaze B2",
-    "title": "OSS Starter Kit API",
+    "description": "Process LiDAR & photogrammetry point clouds with Open3D, stored on Backblaze B2",
+    "title": "Open3D Point Cloud Pipeline API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -911,6 +1287,276 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/jobs": {
+      "get": {
+        "operationId": "list_jobs_endpoint_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Job"
+                  },
+                  "title": "Response List Jobs Endpoint Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Jobs Endpoint",
+        "tags": [
+          "jobs"
+        ]
+      },
+      "post": {
+        "operationId": "create_job_endpoint_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Job Endpoint",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/stats": {
+      "get": {
+        "operationId": "job_stats_endpoint_jobs_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Job Stats Endpoint",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{job_id}": {
+      "delete": {
+        "operationId": "delete_job_endpoint_jobs__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "title": "Response Delete Job Endpoint Jobs  Job Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Job Endpoint",
+        "tags": [
+          "jobs"
+        ]
+      },
+      "get": {
+        "operationId": "get_job_endpoint_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job Endpoint",
+        "tags": [
+          "jobs"
+        ]
+      },
+      "patch": {
+        "operationId": "update_job_endpoint_jobs__job_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Job Endpoint",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{job_id}/run": {
+      "post": {
+        "operationId": "run_job_endpoint_jobs__job_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Job Endpoint",
+        "tags": [
+          "jobs"
         ]
       }
     },

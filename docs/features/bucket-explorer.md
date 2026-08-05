@@ -1,8 +1,12 @@
-<!-- last_verified: 2026-07-28 -->
-# Feature: File Browser
+<!-- last_verified: 2026-08-05 -->
+# Feature: Bucket Explorer
 
 ## Purpose
-List, preview, download, and delete files stored in Backblaze B2.
+The full-bucket explorer: list, preview, download, and delete **every** object
+stored in Backblaze B2 across all prefixes (`raw/` scans and `jobs/` artifacts).
+It is retained from the starter and sits alongside the scoped Library (`/scans`,
+which shows only `raw/`) — the explorer is the bucket-wide view for inspecting
+raw storage.
 
 ## Used By
 - UI: `/files` page, file browser component
@@ -67,13 +71,13 @@ List, preview, download, and delete files stored in Backblaze B2.
 - Invalid file key (traversal attempt, empty key) → API returns 400
 - File key contains `/`, spaces, `#`, `?`, `%`, reserved route names, or suffixes like `/download` and `/preview` → web client sends the key as a query parameter before calling get/download/preview/delete routes
 - B2 unreachable → persistent error state with retry
-- Empty bucket → upload prompt with direct Upload action
+- Empty bucket → prompt pointing to the Scans library to ingest point clouds
 - Delete failure → API returns 500, toast error
 - Download presign slow or failed → the loading toast resolves into a success or an error toast; a browser that refuses the anchor click is reported, never silently swallowed
 - Cold bucket listing (nothing cached) → the one request that pays for the scan blocks; every later one is served from cache, including a stale snapshot while it refreshes in the background
 
 ## UX States
-- Empty: centered message with upload prompt and Upload action
+- Empty: centered message pointing to the Scans library to ingest point clouds
 - Loading: an on-screen "Loading files…" notice above the skeleton rows, escalating to "Still loading files…" plus an explanation at 4s and a "can take 20 seconds or more the first time, then it's cached" note at 12s. The words must never be `sr-only`: measured cold loads ran 2.8s-21s, and pulsing bars alone gave a sighted user no way to tell a slow listing from a hung one
 - Error: inline error state with Retry
 - Loaded: tree view with expand/collapse folders and focus/hover action menus

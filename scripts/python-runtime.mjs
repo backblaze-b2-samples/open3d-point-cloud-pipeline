@@ -1,21 +1,51 @@
 // Finds a usable Python interpreter for scripts/doctor.mjs and scripts/setup.mjs.
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { parseSemver } from "./semver.mjs";
 
+// Floor: the API and its native deps (Open3D 0.19) need CPython >= 3.11.
 export const REQUIRED_PYTHON_MINOR = 11;
 
-// python3 first (canonical on macOS/Linux), then the versioned names Homebrew
-// installs, then the bare python shim (pyenv). The first candidate that meets
-// the minimum wins — otherwise macOS reports a false failure on the system 3.9
-// that `python3` points at, even with a newer Homebrew Python on PATH.
-const PYTHON_CANDIDATES = [
-  "python3",
-  "python3.13",
-  "python3.12",
-  "python3.11",
-  "python",
-];
+// Ceiling: Open3D 0.19 publishes wheels only up to CPython 3.12. A newer
+// interpreter (3.13/3.14 — what a bare `python3` often is on a dev box) has NO
+// open3d wheel, so `pip install` would fail with a source build. Refuse those
+// so setup/doctor pick a version that can actually install the API deps.
+const MAX_PYTHON_MINOR = 12;
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+// The version the API is pinned to (services/api/.python-version). We prefer an
+// interpreter that matches this exactly before falling back to anything else in
+// the supported [REQUIRED..MAX] window.
+function pinnedMinor() {
+  try {
+    const raw = readFileSync(
+      resolve(REPO_ROOT, "services/api/.python-version"),
+      "utf8",
+    ).trim();
+    const version = parseSemver(raw);
+    return version ? version.minor : null;
+  } catch {
+    return null;
+  }
+}
+
+// uv-managed interpreters are not on PATH by default, but `uv python find`
+// prints the absolute path to one. This lets a dev box whose bare `python3` is
+// too new still resolve the pinned 3.12 that `uv python install 3.12` provided.
+function uvManagedPython(minor) {
+  if (minor === null) return null;
+  const result = spawnSync("uv", ["python", "find", `3.${minor}`], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error || result.status !== 0) return null;
+  const path = (result.stdout ?? "").trim();
+  return path || null;
+}
 
 /**
  * @returns {{bin: string, text: string, version: object}|null} null when the
@@ -40,19 +70,52 @@ function readVersion(bin) {
   return { bin, text, version };
 }
 
-export function findPython() {
-  const found = [];
+function inSupportedWindow(version) {
+  return (
+    version.major === 3 &&
+    version.minor >= REQUIRED_PYTHON_MINOR &&
+    version.minor <= MAX_PYTHON_MINOR
+  );
+}
 
-  for (const bin of PYTHON_CANDIDATES) {
+export function findPython() {
+  const pinned = pinnedMinor();
+
+  // Order matters: the pinned versioned name and the uv-managed pinned
+  // interpreter come first so a box whose bare `python3` is too new still
+  // resolves the version that can install the API deps. Then the versioned
+  // names for the supported window, then the generic shims.
+  const candidates = [
+    pinned !== null ? `python3.${pinned}` : null,
+    uvManagedPython(pinned),
+    "python3.12",
+    "python3.11",
+    "python3",
+    "python",
+  ].filter(Boolean);
+
+  const found = [];
+  const seenBins = new Set();
+  for (const bin of candidates) {
+    if (seenBins.has(bin)) continue;
+    seenBins.add(bin);
     const candidate = readVersion(bin);
     if (!candidate) continue;
     found.push(candidate);
-
-    const { version } = candidate;
-    if (version.major >= 3 && version.minor >= REQUIRED_PYTHON_MINOR) {
-      return { python: candidate, found };
-    }
   }
+
+  // 1) Exact match on the pinned version wins.
+  if (pinned !== null) {
+    const exact = found.find(
+      (c) => c.version.major === 3 && c.version.minor === pinned,
+    );
+    if (exact) return { python: exact, found };
+  }
+
+  // 2) Otherwise the first interpreter inside the supported [REQUIRED..MAX]
+  //    window — this excludes an interpreter that is too new to have wheels.
+  const compatible = found.find((c) => inSupportedWindow(c.version));
+  if (compatible) return { python: compatible, found };
 
   return { python: null, found };
 }

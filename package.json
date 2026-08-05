@@ -1,28 +1,28 @@
 {
-  "name": "vibe-coding-starter-kit",
+  "name": "open3d-point-cloud-pipeline",
   "private": true,
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "doctor": "node scripts/doctor.mjs",
     "predev": "node scripts/doctor.mjs",
     "dev": "sh scripts/dev.sh",
-    "dev:web": "pnpm --filter @vibe-coding-starter-kit/web dev",
+    "dev:web": "pnpm --filter @open3d-point-cloud-pipeline/web dev",
     "dev:api": "cd services/api && .venv/bin/uvicorn main:app --reload --port ${API_PORT:-8000}",
-    "build": "pnpm --filter @vibe-coding-starter-kit/web build",
-    "typecheck": "pnpm --filter @vibe-coding-starter-kit/web typecheck",
+    "build": "pnpm --filter @open3d-point-cloud-pipeline/web build",
+    "typecheck": "pnpm --filter @open3d-point-cloud-pipeline/web typecheck",
     "contract:export": "services/api/.venv/bin/python services/api/scripts/export_openapi.py",
-    "contract:check": "services/api/.venv/bin/python services/api/scripts/export_openapi.py --check && pnpm --filter @vibe-coding-starter-kit/web exec vitest run src/lib/api-contract.test.ts",
+    "contract:check": "services/api/.venv/bin/python services/api/scripts/export_openapi.py --check && pnpm --filter @open3d-point-cloud-pipeline/web exec vitest run src/lib/api-contract.test.ts",
     "check:agent-docs": "node scripts/check-agent-docs.mjs",
     "verify": "pnpm check:agent-docs && pnpm verify:api && pnpm verify:web",
     "verify:api": "pnpm lint:api && pnpm test:api && pnpm check:structure",
     "verify:web": "pnpm lint && pnpm test:web && pnpm build",
     "verify:full": "pnpm run doctor && pnpm verify && pnpm test:e2e",
-    "lint": "pnpm --filter @vibe-coding-starter-kit/web lint",
+    "lint": "pnpm --filter @open3d-point-cloud-pipeline/web lint",
     "lint:api": "cd services/api && .venv/bin/ruff check .",
-    "test:web": "pnpm --filter @vibe-coding-starter-kit/web test",
+    "test:web": "pnpm --filter @open3d-point-cloud-pipeline/web test",
     "test:api": "cd services/api && .venv/bin/python -m pytest",
     "check:structure": "cd services/api && .venv/bin/python -m pytest tests/test_structure.py -v",
-    "test:e2e": "pnpm --filter @vibe-coding-starter-kit/web exec playwright test"
+    "test:e2e": "pnpm --filter @open3d-point-cloud-pipeline/web exec playwright test"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

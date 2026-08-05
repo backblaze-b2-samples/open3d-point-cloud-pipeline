@@ -29,7 +29,8 @@ import { activeUploadLabel } from "@/lib/upload-status";
 // (e.g. "/" -> "Dashboard", "/design" -> "Design System").
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
-  "/upload": "Upload",
+  "/scans": "Scans",
+  "/jobs": "Jobs",
   "/files": "Files",
   "/settings": "Settings",
   "/design": "Design System",
@@ -52,8 +53,8 @@ export function Header() {
   const pageTitle = pageTitles[pathname] ?? deriveTitleFromPath(pathname);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
-  // An upload started on /upload keeps running while the user browses, so it
-  // needs a presence indicator that isn't on the upload page itself.
+  // An upload started on /scans keeps running while the user browses, so it
+  // needs a presence indicator that isn't on the Scans page itself.
   const { items } = useUploadQueue();
   const uploadLabel = activeUploadLabel(items);
 
@@ -118,7 +119,7 @@ export function Header() {
       <div className="ml-auto flex items-center gap-1">
         {uploadLabel && (
           <Link
-            href="/upload"
+            href="/scans"
             aria-live="polite"
             className="mr-1 flex items-center gap-1.5 rounded-md bg-white/10 px-2 py-1 text-xs font-medium text-nav-foreground hover:bg-white/15"
           >

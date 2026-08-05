@@ -6,72 +6,53 @@ from app.service.metadata import extract_metadata
 from app.types import FileUploadResponse
 from app.types.formatting import humanize_bytes
 
-# Note: image/svg+xml is deliberately excluded. SVGs can embed <script>, so a
-# file stored and later served from a public bucket URL would execute in the
-# browser (stored XSS). Re-add only with server-side SVG sanitization.
-ALLOWED_TYPES = {
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-    "application/pdf",
-    "text/plain",
-    "text/csv",
-    "application/json",
-    "application/zip",
-    "video/mp4",
-    "audio/mpeg",
-    "audio/wav",
-}
+# Point-cloud ingest. Browsers send `application/octet-stream` for these binary
+# formats (no registered MIME type), so the declared content type is untrusted
+# and we gate on the file EXTENSION plus a light per-format magic-byte check.
+# Keep this set in lockstep with the frontend dropzone allow-list in
+# apps/web/src/lib/upload-file-types.ts (a test on each side enforces the mirror).
+POINT_CLOUD_EXTENSIONS: tuple[str, ...] = ("ply", "pcd", "las", "laz")
 
-MIME_EXTENSION_MAP: dict[str, set[str]] = {
-    "image/jpeg": {"jpg", "jpeg", "jfif"},
-    "image/png": {"png"},
-    "image/gif": {"gif"},
-    "image/webp": {"webp"},
-    "application/pdf": {"pdf"},
-    "text/plain": {"txt", "text", "log", "md"},
-    "text/csv": {"csv"},
-    "application/json": {"json"},
-    "application/zip": {"zip"},
-    "video/mp4": {"mp4"},
-    "audio/mpeg": {"mp3", "mpeg"},
-    "audio/wav": {"wav"},
-}
+# Canonical stored content type: these formats have no standard MIME type and
+# the client value is untrusted, so every ingested scan is stored as a generic
+# binary object. Downloads still work; the extension carries the real format.
+POINT_CLOUD_CONTENT_TYPE = "application/octet-stream"
 
-# Magic-byte signatures for the binary types we accept. The client-declared
-# content_type is untrusted, so we sniff the leading bytes and reject obvious
-# mismatches (e.g. an HTML/script payload uploaded as image/png). Text-like
-# types (text/plain, text/csv, application/json) have no reliable signature and
-# are intentionally omitted — they skip this check but remain constrained by
-# the extension/type consistency check.
-def matches_content_signature(data: bytes, content_type: str) -> bool:
-    """Return True if `data`'s leading bytes are consistent with `content_type`.
+# Raw scans land under this prefix — the scoped Library (/scans) is this prefix.
+RAW_PREFIX = "raw/"
 
-    Types without a known signature return True (nothing to verify).
+
+def file_extension(filename: str) -> str:
+    """Lower-cased extension without the dot, or '' when there is none."""
+    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+
+def is_allowed_extension(ext: str) -> bool:
+    return ext in POINT_CLOUD_EXTENSIONS
+
+
+def matches_point_cloud_signature(data: bytes, ext: str) -> bool:
+    """Light magic-byte check that ``data`` looks like a ``ext`` point cloud.
+
+    PLY files begin with ``ply``; LAS/LAZ begin with the ``LASF`` magic (LAZ is
+    laszip-compressed LAS and keeps the same header). PCD has an ASCII header
+    but no single-byte magic, so it is checked leniently. An unknown extension
+    returns True (the extension gate already rejected non-point-cloud files).
     """
-    if content_type == "image/jpeg":
-        return data[:3] == b"\xff\xd8\xff"
-    if content_type == "image/png":
-        return data[:8] == b"\x89PNG\r\n\x1a\n"
-    if content_type == "image/gif":
-        return data[:6] in (b"GIF87a", b"GIF89a")
-    if content_type == "image/webp":
-        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
-    if content_type == "application/pdf":
-        return data[:5] == b"%PDF-"
-    if content_type == "application/zip":
-        return data[:4] in (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
-    if content_type == "video/mp4":
-        return data[4:8] == b"ftyp"  # ISO base media 'ftyp' box
-    if content_type == "audio/mpeg":
-        # ID3 tag, or an MPEG audio frame sync (11 set bits).
-        return data[:3] == b"ID3" or (
-            len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0
+    if ext == "ply":
+        return data[:3].lower() == b"ply"
+    if ext in ("las", "laz"):
+        return data[:4] == b"LASF"
+    if ext == "pcd":
+        head = data[:200]
+        return (
+            head[:1] == b"#"
+            or head[:7] == b"VERSION"
+            or b".PCD" in head
+            or b"FIELDS" in head
         )
-    if content_type == "audio/wav":
-        return data[:4] == b"RIFF" and data[8:12] == b"WAVE"
     return True
+
 
 _SAFE_FILENAME_RE = re.compile(r"[^\w\-.]")
 
@@ -97,17 +78,6 @@ def sanitize_filename(filename: str) -> str:
     return name or "unnamed"
 
 
-def validate_extension_matches_type(filename: str, content_type: str) -> bool:
-    """Verify the file extension is consistent with the declared MIME type."""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    allowed_exts = MIME_EXTENSION_MAP.get(content_type)
-    if allowed_exts is None:
-        return False
-    if not ext:
-        return True
-    return ext in allowed_exts
-
-
 class UploadError(Exception):
     """Raised when upload validation fails."""
 
@@ -123,7 +93,7 @@ def process_upload(
     content_type: str,
     content_length: int | None = None,
 ) -> FileUploadResponse:
-    """Validate and process a file upload. Raises UploadError on failure."""
+    """Validate and store a point-cloud upload as a raw scan. Raises UploadError."""
     if not filename:
         raise UploadError("No filename provided")
 
@@ -133,25 +103,22 @@ def process_upload(
             status_code=413,
         )
 
-    if content_type not in ALLOWED_TYPES:
-        raise UploadError(
-            f"File type '{content_type}' not allowed", status_code=415
-        )
-
     safe_name = sanitize_filename(filename)
-
-    if not validate_extension_matches_type(safe_name, content_type):
+    ext = file_extension(safe_name)
+    if not is_allowed_extension(ext):
         raise UploadError(
-            "File extension does not match declared content type",
+            "Unsupported file type. Upload a point cloud: "
+            f"{', '.join('.' + e for e in POINT_CLOUD_EXTENSIONS)}",
             status_code=415,
         )
 
     if len(file_data) == 0:
         raise UploadError("Empty file")
 
-    if not matches_content_signature(file_data, content_type):
+    if not matches_point_cloud_signature(file_data, ext):
         raise UploadError(
-            "File contents do not match the declared type", status_code=415
+            f"File contents do not look like a valid .{ext} point cloud",
+            status_code=415,
         )
 
     if len(file_data) > settings.max_file_size:
@@ -160,12 +127,12 @@ def process_upload(
             status_code=413,
         )
 
-    # B2 buckets are always versioned — uploading the same key creates a new
-    # version automatically.  No duplicate rejection needed.
-    key = f"uploads/{safe_name}"
-    result = upload_file(file_data, key, content_type)
+    # B2 buckets are always versioned — re-uploading the same key adds a new
+    # version automatically, so no duplicate rejection is needed.
+    key = f"{RAW_PREFIX}{safe_name}"
+    result = upload_file(file_data, key, POINT_CLOUD_CONTENT_TYPE)
     metadata = extract_metadata(
-        file_data, safe_name, content_type, result.uploaded_at
+        file_data, safe_name, POINT_CLOUD_CONTENT_TYPE, result.uploaded_at
     )
 
     return FileUploadResponse(
@@ -173,7 +140,7 @@ def process_upload(
         filename=result.filename,
         size_bytes=result.size_bytes,
         size_human=result.size_human,
-        content_type=content_type,
+        content_type=POINT_CLOUD_CONTENT_TYPE,
         uploaded_at=result.uploaded_at,
         url=result.url,
         metadata=metadata,

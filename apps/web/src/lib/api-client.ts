@@ -3,8 +3,12 @@ import type {
   FileMetadata,
   FileMetadataDetail,
   FileUploadResponse,
+  Job,
+  JobCreate,
+  JobStats,
+  JobUpdate,
   UploadStats,
-} from "@vibe-coding-starter-kit/shared";
+} from "@open3d-point-cloud-pipeline/shared";
 
 // Single-origin deploys (Vercel `services`: one project serving web + API) put
 // the API under /api on the same origin, so no NEXT_PUBLIC_API_URL is needed —
@@ -16,7 +20,7 @@ export const API_BASE =
   (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:8000");
 
 type ApiClientRoute = {
-  method: "delete" | "get" | "post";
+  method: "delete" | "get" | "patch" | "post";
   path: string;
 };
 
@@ -35,6 +39,14 @@ export const API_CLIENT_ROUTES = {
   legacyFileMetadata: { method: "get", path: "/files/{key}" },
   legacyFileDelete: { method: "delete", path: "/files/{key}" },
   upload: { method: "post", path: "/upload" },
+  // Point-cloud processing jobs (primary entity).
+  jobs: { method: "get", path: "/jobs" },
+  jobStats: { method: "get", path: "/jobs/stats" },
+  createJob: { method: "post", path: "/jobs" },
+  job: { method: "get", path: "/jobs/{job_id}" },
+  updateJob: { method: "patch", path: "/jobs/{job_id}" },
+  deleteJob: { method: "delete", path: "/jobs/{job_id}" },
+  runJob: { method: "post", path: "/jobs/{job_id}/run" },
 } as const satisfies Record<string, ApiClientRoute>;
 
 /** Typed API error with HTTP status code for caller-side branching. */
@@ -276,5 +288,54 @@ export function uploadFile(
       `${API_BASE}${API_CLIENT_ROUTES.upload.path}`
     );
     xhr.send(formData);
+  });
+}
+
+// --- Point-cloud processing jobs -------------------------------------------
+
+const JSON_HEADERS = { "Content-Type": "application/json" } as const;
+
+function jobPath(template: string, id: string): string {
+  return template.replace("{job_id}", encodeURIComponent(id));
+}
+
+export async function getJobs() {
+  return apiFetch<Job[]>(API_CLIENT_ROUTES.jobs.path);
+}
+
+export async function getJobStats() {
+  return apiFetch<JobStats>(API_CLIENT_ROUTES.jobStats.path);
+}
+
+export async function getJob(id: string) {
+  return apiFetch<Job>(jobPath(API_CLIENT_ROUTES.job.path, id));
+}
+
+export async function createJob(body: JobCreate) {
+  return apiFetch<Job>(API_CLIENT_ROUTES.createJob.path, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateJob(id: string, body: JobUpdate) {
+  return apiFetch<Job>(jobPath(API_CLIENT_ROUTES.updateJob.path, id), {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteJob(id: string) {
+  return apiFetch<{ deleted: boolean; id: string }>(
+    jobPath(API_CLIENT_ROUTES.deleteJob.path, id),
+    { method: "DELETE" }
+  );
+}
+
+export async function runJob(id: string) {
+  return apiFetch<Job>(jobPath(API_CLIENT_ROUTES.runJob.path, id), {
+    method: "POST",
   });
 }

@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileMetadataPanel } from "@/components/files/file-metadata-panel";
 import { PreviewMedia } from "@/components/files/file-preview-media";
 import { useFileDetail, usePreviewUrl } from "@/lib/queries";
-import type { FileMetadata } from "@vibe-coding-starter-kit/shared";
+import type { FileMetadata } from "@open3d-point-cloud-pipeline/shared";
 
 interface FilePreviewProps {
   file: FileMetadata | null;

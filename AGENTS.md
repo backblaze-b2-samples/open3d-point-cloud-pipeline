@@ -20,22 +20,22 @@ infra/railway/     Deployment config
 infra/vercel/      Vercel deployment contract
 ```
 
-## 2. Building on This Starter Kit
+## 2. This App (built on the starter kit)
 
-When this repo is used as the foundation for a new app, the following pieces are part of the starter contract — keep them. Adapt only what the new use case actually requires.
+This is **Open3D Point Cloud Pipeline** — a B2-backed 3D point-cloud processing app built on Backblaze's B2 starter kit. The reusable B2 scaffolding is kept; app-specific screens were added. The primary entity is a **Job** (see `docs/features/jobs.md`).
 
-**Keep as-is (do not strip, rename, or replace)**
-- **UI kit / design system.** `apps/web/src/components/ui/` (shadcn primitives), the design tokens in `apps/web/src/app/globals.css`, and the `/design` reference page. Build new screens with these primitives; never edit the generated `components/ui/` files directly. Restyling happens through tokens in `globals.css`.
-- **File Explorer.** `/files` route, `apps/web/src/app/files/`, and `apps/web/src/components/files/`. The Files sidebar entry in `apps/web/src/components/layout/app-sidebar.tsx` stays.
-- **Upload.** `/upload` route, `apps/web/src/app/upload/`, and `apps/web/src/components/upload/`. The Upload sidebar entry stays.
-- The sidebar nav itself (Dashboard, Upload, Files, Settings, plus the Design System utility link).
+**Kept from the starter**
+- **UI kit / design system.** `apps/web/src/components/ui/` (shadcn primitives), the design tokens in `apps/web/src/app/globals.css`, and the `/design` page. Build new screens with these primitives; never edit the generated `components/ui/` files directly — restyle through tokens in `globals.css`.
+- **Full-bucket explorer.** `/files` route + `apps/web/src/components/files/` + `runtime/files.py` — the bucket-wide browser is retained.
+- **Upload internals** (`apps/web/src/components/upload/`, `runtime/upload.py`, `service/upload.py`), re-scoped to point-cloud file types and folded into the Scans library.
 
-**Adapt to the new use case**
-- **Dashboard.** `/` route and `apps/web/src/components/dashboard/` (stats cards, upload chart, recent uploads table) are illustrative defaults. Replace them with metrics, charts, and tables that reflect what the new app actually does (e.g. transcripts processed, embeddings indexed, classifications run). New aggregations must flow through the same `runtime -> service -> repo` layering and be exposed via TanStack Query hooks in `apps/web/src/lib/queries.ts` — no bare `useEffect + fetch`.
-- Update `docs/features/dashboard.md` in the same PR as any dashboard change (see §9).
+**Added for this app**
+- **Scans** (`/scans`) — a scoped Library over the `raw/` prefix (ingest + list source scans), alongside the full-bucket explorer.
+- **Jobs** (`/jobs`, `/jobs/new`, `/jobs/[id]`, `/jobs/[id]/edit`) — the primary entity with full create/read/edit/delete/run, persisted as JSON manifests in B2. Pipeline compute in `service/pipeline.py` + `service/pointcloud.py` + `service/preview.py`; lifecycle in `service/jobs.py`; B2 manifest/artifact I/O in `repo/artifacts.py`.
+- **Dashboard** (`/`, `apps/web/src/components/dashboard/`) repointed to job + storage **write-amplification** metrics. New aggregations flow through `runtime -> service -> repo` and are exposed via TanStack Query hooks in `apps/web/src/lib/queries.ts` — no bare `useEffect + fetch`. Update `docs/features/dashboard.md` in the same PR (see §9).
+- Sidebar nav: Dashboard, Scans, Jobs, Files, Settings, plus the Design System utility link.
 
-**Why this contract exists**
-- The UI kit, Files, and Upload pages are the reusable B2-backed scaffolding that makes this a starter kit — stripping them defeats the purpose. The dashboard is the only screen explicitly designed to be rewritten per app.
+**Deployment.** Open3D's native libraries do not run on Vercel serverless, so the API is **local/self-hosted** (Railway/Docker/local); the Next.js frontend may deploy to Vercel pointing at a self-hosted API. Point-cloud ops are CPU-only — no GPU is required.
 
 ## 3. Architectural Invariants
 
@@ -149,7 +149,7 @@ recovery workflows. `pnpm verify` needs `services/api/.venv` to exist (run
 `pnpm run setup`); without
 it `pnpm verify:api` fails with a bare "no such file" on `.venv/bin/ruff`, and
 `pnpm contract:export` / `pnpm contract:check` fail the same way on
-`.venv/bin/python`. The API's complete Python 3.11 resolution is committed in
+`.venv/bin/python`. The API's complete Python 3.12 resolution is committed in
 `services/api/requirements.lock`; setup and CI install it. Update it only with
 the reviewed workflow in [docs/dev-workflows.md](docs/dev-workflows.md#python-dependency-updates).
 

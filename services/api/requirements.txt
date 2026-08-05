@@ -12,6 +12,15 @@ boto3>=1.35.0
 Pillow>=11.0.0
 PyPDF2>=3.0.0
 
+# 3D point-cloud pipeline (Open3D core geometry ops are CPU-bound; no GPU used).
+# open3d 0.18 has no cp312 wheel — pin >=0.19.0 (ships macOS-arm64 + cp312 wheels,
+# supports numpy 2). laspy[lazrs] adds the LAZ backend for compressed LiDAR.
+# matplotlib is the headless-safe primary preview renderer.
+open3d>=0.19.0
+laspy[lazrs]>=2.5.0
+matplotlib>=3.8.0
+numpy>=1.26.0
+
 # Dev / quality
 ruff>=0.8.0
 pytest>=8.0.0

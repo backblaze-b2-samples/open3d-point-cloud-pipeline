@@ -1,7 +1,7 @@
 import type {
   FileMetadataDetail,
   FileStatus,
-} from "@vibe-coding-starter-kit/shared";
+} from "@open3d-point-cloud-pipeline/shared";
 
 /** One row of the upload queue. Owned by `UploadQueueProvider`. */
 export interface UploadItem {
