@@ -17,7 +17,7 @@ PyPDF2>=3.0.0
 # supports numpy 2). laspy[lazrs] adds the LAZ backend for compressed LiDAR.
 # matplotlib is the headless-safe primary preview renderer.
 open3d>=0.19.0
-laspy[lazrs]>=2.5.0
+laspy[lazrs]>=2.7.0
 matplotlib>=3.8.0
 numpy>=1.26.0
 
