@@ -67,5 +67,3 @@ Low-severity polish carried over on the starter surfaces this app keeps
 | Custom `FileNotFoundError` shadowed the built-in | Renamed to `FileNotFoundServiceError` |
 | Dropzone accepted any file type client-side | `accept` allow-list mirroring backend `ALLOWED_TYPES` (tested for drift) |
 | No test harness for feature specs | pytest suite across upload, files, activity, errors, validation, rate limit, pagination, and the job lifecycle + pipeline smoke |
-</content>
-</invoke>
