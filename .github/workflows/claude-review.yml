@@ -27,6 +27,9 @@ jobs:
           pip install uv
           uv pip install --system -r requirements.txt
 
+      - name: Install system libraries for Open3D
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libegl1 libglib2.0-0 libgomp1
+
       - name: Run Python tests
         working-directory: services/api
         run: |
